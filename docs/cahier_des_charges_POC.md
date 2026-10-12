@@ -95,7 +95,8 @@ Types d'écart : `ONLY_R1`, `ONLY_R2`, `DIFF`. Les écarts correspondant à une 
 - **`config_compa_ase`** : `instance`, `host`, `port`, `login`, `password`.
 - **`exclusion_rules`** : `module`, `cle`, `motif`, `actif`.
 - **`diff_<module>`** (7 tables) : `run_id`, `refid`, `ts_exec`, `type_diff`, colonnes de clé, `R1_<valeur>`, `R2_<valeur>`. Une ligne consolidée par différence, avec index sur `run_id` et `refid`.
-- Script `create_schema.sql` livré.
+- Schéma PostgreSQL : `compa_ase`. Table `schema_version` (le script de comparaison vérifie sa présence au démarrage), fonctions `get_or_create_refid`, `start_run`, `end_run`, vues `v_run_selector` et `v_synthese_run` pour Grafana.
+- Script `sql/postgres/create_schema.sql` livré (rejouable, testé sur PostgreSQL 16).
 - Un utilisateur PostgreSQL en lecture seule pour Grafana.
 
 ## 9. Grafana (sur le bastion)
