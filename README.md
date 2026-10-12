@@ -16,8 +16,7 @@ Les écarts sont enregistrés dans PostgreSQL et affichés dans Grafana (un dash
 | `python/` | `compare.py` (comparaison des CSV et insertion dans PostgreSQL) et `tests/` (tests automatisés, CSV factices) |
 | `sql/postgres/` | `create_schema.sql` : schéma PostgreSQL `compa_ase` (références, runs, configuration, exclusions, 7 tables `diff_<module>`, vues Grafana) |
 | `sql/ase_test/` | Deux scripts créant la base `poc_db` avec des écarts volontaires (instance 1 et instance 2) |
-
-Dossier à venir : `grafana/` (dashboards).
+| `grafana/` | 8 dashboards JSON (synthèse + 7 modules, navigation par barre de liens), générateur, provisioning, tests. Voir `grafana/README.md` |
 
 ## Lancer une comparaison
 
@@ -78,6 +77,10 @@ python3 -m unittest discover -s tests -v                      # tests automatis�
 ```
 
 Les CSV de `tests/fixtures` reproduisent les écarts des scripts `sql/ase_test`. Les tests d'intégration PostgreSQL sont activés avec `COMPA_TEST_PG=1` (voir l'en-tête de `python/tests/test_compare.py`).
+
+## Grafana
+
+Installation, provisioning et navigation entre modules : [`grafana/README.md`](grafana/README.md). Tests : `COMPA_TEST_PG=1 COMPA_TEST_DB=compa python3 grafana/tests/test_dashboards.py` (exécute chaque requête de panneau sur PostgreSQL avec les 30 écarts de test).
 
 ## Création du schéma PostgreSQL
 
