@@ -13,7 +13,10 @@ python compare.py --csv-dir <dossier> --run-id <run_id> --refid <refid> \
 - `run_id` et `refid` sont créés **avant** l'extraction par le bash, avec les fonctions du schéma :
   `SELECT compa_ase.get_or_create_refid(:instance1, :base1, :instance2, :base2);` puis `SELECT compa_ase.start_run(:refid);`
 - À la fin, `compare.py` appelle `compa_ase.end_run(run_id, 'TERMINE')`, ou `'ERREUR'` avec un message en cas d'échec.
-- Le mot de passe PostgreSQL peut aussi venir de `PGPASSWORD` ou de `.pgpass`.
+- Le mot de passe PostgreSQL peut aussi venir de `PGPASSWORD` ou de `.pgpass` (recommandé : un argument `-P` est visible dans `ps`). `compare.py` le transmet à `psql` par la variable d'environnement.
+- Options supplémentaires : `--dry-run` (compare et affiche sans accéder à PostgreSQL, avec les règles d'exclusion par défaut), `-v` (liste chaque écart), `--source-encoding` (encodage du code source ASE, `utf-8` par défaut, par exemple `latin-1`).
+- Les écarts d'une exécution sont insérés en **une seule transaction** avec la clôture du run : en cas d'erreur, rien n'est écrit et le run passe en `ERREUR` avec un message.
+- Aucune dépendance pip : `compare.py` n'utilise que la bibliothèque standard et le client `psql`.
 
 | Code retour | Signification |
 |---|---|
@@ -176,7 +179,29 @@ sp_get_customer|P|1|637265617465...
 sp_get_customer|P|2|2020...
 ```
 
-## 5. Correspondance avec les tables PostgreSQL
+## 5. Règles d'exclusion
+
+Les règles actives de `compa_ase.exclusion_rules` sont lues au démarrage (mode normal) :
+
+| Colonne | Rôle |
+|---|---|
+| `module` | Module concerné (`inst_config`, `obj_tables`…) |
+| `cle_pattern` | Motif SQL `LIKE` (`%` et `_`) appliqué au **texte de la clé**, dont les parties sont jointes par un point : `deadlock retries`, `customers.email`, `sp_get_customer.P`. `%` = toutes les lignes |
+| `colonne` | `*` = toute la ligne, ou le nom d'un champ comparé (`statstamp`, `length`, `value`…) |
+| `action` | `IGNORE` : l'écart n'est pas enregistré. `ATTENDU` : l'écart est enregistré avec `attendu = true` |
+
+- Avec `colonne = '*'` et `IGNORE`, la ligne est écartée, y compris les présences d'un seul côté.
+- Avec un champ précis et `IGNORE`, ce champ n'est plus comparé pour les clés concernées ; s'il ne reste aucune différence, il n'y a pas d'écart (cas de `statstamp`, ignoré par défaut).
+- Avec un champ précis et `ATTENDU`, la ligne est marquée `attendu` seulement si **tous** les champs différents sont couverts par une règle.
+
+Exemple, marquer comme attendu un paramètre propre à chaque instance :
+
+```sql
+INSERT INTO compa_ase.exclusion_rules (module, cle_pattern, colonne, action, motif)
+VALUES ('inst_config', 'deadlock%', '*', 'ATTENDU', 'Paramètre volontairement différent');
+```
+
+## 6. Correspondance avec les tables PostgreSQL
 
 | Module | Table de résultats | Colonnes de valeur |
 |---|---|---|

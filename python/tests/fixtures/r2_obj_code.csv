@@ -1,0 +1,8 @@
+object_name|object_type
+sp_get_customer|P
+sp_list_products|P
+sp_calc_order_total|P
+sp_archive_orders|P
+v_orders_summary|V
+v_customer_orders|V
+trg_orders_audit|TR

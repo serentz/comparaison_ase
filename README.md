@@ -13,10 +13,21 @@ Les écarts sont enregistrés dans PostgreSQL et affichés dans Grafana (un dash
 |---|---|
 | `bash/` | Extraction des données ASE via `isql` (`Compare_instance_V3.sh`, à alléger) |
 | `docs/` | Cahier des charges du POC |
+| `python/` | `compare.py` (comparaison des CSV et insertion dans PostgreSQL) et `tests/` (tests automatisés, CSV factices) |
 | `sql/postgres/` | `create_schema.sql` : schéma PostgreSQL `compa_ase` (références, runs, configuration, exclusions, 7 tables `diff_<module>`, vues Grafana) |
 | `sql/ase_test/` | Deux scripts créant la base `poc_db` avec des écarts volontaires (instance 1 et instance 2) |
 
-Dossiers à venir : `python/` (comparaison), `grafana/` (dashboards).
+Dossier à venir : `grafana/` (dashboards).
+
+## Tester `compare.py` sans instance ASE
+
+```
+cd python
+python3 compare.py --csv-dir tests/fixtures --dry-run -v      # 30 écarts attendus
+python3 -m unittest discover -s tests -v                      # tests automatisés
+```
+
+Les CSV de `tests/fixtures` reproduisent les écarts des scripts `sql/ase_test`. Les tests d'intégration PostgreSQL sont activés avec `COMPA_TEST_PG=1` (voir l'en-tête de `python/tests/test_compare.py`).
 
 ## Création du schéma PostgreSQL
 

@@ -74,7 +74,7 @@ Les options `-t`, `-b` et `-m` de l'ancien script sont supprimées.
 
 ## 7. Partie 2 : comparaison (Python, venv)
 
-Pour chaque module : chargement des deux CSV en mémoire (pandas), jointure par clé, détection des écarts, application des règles d'exclusion, insertion dans PostgreSQL.
+Pour chaque module : chargement des deux CSV en mémoire, jointure par clé, détection des écarts, application des règles d'exclusion, insertion dans PostgreSQL. `compare.py` n'a aucune dépendance pip (bibliothèque standard et client `psql`) ; le venv reste créé pour isoler l'exécution. Le format des CSV est décrit dans `format_csv.md`.
 
 | Module | Clé | Valeurs comparées |
 |---|---|---|

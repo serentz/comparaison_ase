@@ -1,0 +1,10 @@
+table_name|index_name|status|statstamp
+customers|idx_customers_name|0|1970-01-01 00:00:00
+customers|pk_customers|2066|1970-01-01 00:00:00
+customers|uq_customers_email|0|1970-01-01 00:00:00
+products|pk_products|2050|NULL
+orders|pk_orders|2066|NULL
+order_items|pk_order_items|2066|NULL
+order_items|idx_order_items_order|0|NULL
+audit_log|pk_audit_log|2066|NULL
+orders|idx_orders_customer|0|NULL
