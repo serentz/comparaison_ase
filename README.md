@@ -11,7 +11,7 @@ Les écarts sont enregistrés dans PostgreSQL et affichés dans Grafana (un dash
 
 | Dossier | Contenu |
 |---|---|
-| `bash/` | Extraction des données ASE via `isql` (`Compare_instance_V3.sh`, à alléger) |
+| `bash/` | `compare_ase.sh` (orchestration), `queries/*.sql` (requêtes d'extraction), `tests/` (faux `isql`, tests). `Compare_instance_V3.sh` : ancien script, conservé pour référence |
 | `docs/` | Cahier des charges du POC |
 | `python/` | `compare.py` (comparaison des CSV et insertion dans PostgreSQL) et `tests/` (tests automatisés, CSV factices) |
 | `sql/postgres/` | `create_schema.sql` : schéma PostgreSQL `compa_ase` (références, runs, configuration, exclusions, 7 tables `diff_<module>`, vues Grafana) |
@@ -19,7 +19,57 @@ Les écarts sont enregistrés dans PostgreSQL et affichés dans Grafana (un dash
 
 Dossier à venir : `grafana/` (dashboards).
 
-## Tester `compare.py` sans instance ASE
+## Lancer une comparaison
+
+Prérequis sur le bastion : `psql`, `isql` (client Open Client, instances résolues par le fichier `interfaces`), Python 3.8+.
+
+1. Déclarer les deux instances ASE (un login par instance) :
+
+```sql
+INSERT INTO compa_ase.config_compa_ase (instance, host, port, login, password)
+VALUES ('ASE1', 'ase01', 5000, '<login>', '<mot_de_passe>'),
+       ('ASE2', 'ase02', 5000, '<login>', '<mot_de_passe>');
+```
+
+2. Lancer le script (mot de passe PostgreSQL par `PGPASSWORD` ou `~/.pgpass`) :
+
+```
+bash/compare_ase.sh -S ASE1 -D poc_db -s ASE2 -d poc_db -U <login_pg> -H <hote_pg> -p 5432 -n compa
+```
+
+| Option | Rôle |
+|---|---|
+| `-S` `-D` | Instance et base 1 |
+| `-s` `-d` | Instance et base 2 |
+| `-U` `-P` | Login et mot de passe PostgreSQL (`-P` est visible dans `ps`, préférer `PGPASSWORD`) |
+| `-H` `-p` `-n` | Hôte, port et base PostgreSQL |
+| `-k` | Conserver les CSV du run |
+
+Le script vérifie le schéma PostgreSQL, lit les logins ASE dans `config_compa_ase`, crée ou retrouve le `refid`, ouvre un `run_id`, extrait les 7 modules des deux côtés, puis appelle `python/compare.py`. Le mot de passe ASE est transmis à `isql` par l'entrée standard, jamais en argument.
+
+Les requêtes d'extraction sont dans `bash/queries/<module>.sql` : ce sont des requêtes de départ reprises de `Compare_instance_V3.sh`, **à remplacer par les requêtes validées**. Seules les colonnes décrites dans `docs/format_csv.md` comptent.
+
+| Code retour | Signification |
+|---|---|
+| 0 | Comparaison terminée |
+| 1 | Arguments invalides |
+| 2 | CSV invalide (retour de `compare.py`) |
+| 3 | Erreur PostgreSQL (retour de `compare.py`) |
+| 10 | Outil manquant ou PostgreSQL injoignable |
+| 11 | Schéma ou tables PostgreSQL absents : exécuter `sql/postgres/create_schema.sql` |
+| 12 | Instance absente de `config_compa_ase` |
+| 13 | Connexion ou extraction ASE en échec |
+
+## Tester sans instance ASE
+
+Un faux `isql` (`bash/tests/fake_bin/isql`), alimenté par les CSV factices, simule le comportement d'`isql` (invite `Password:`, colonnes remplies d'espaces, code retour 0 même en cas d'échec) :
+
+```
+export COMPA_TEST_DB=compa PGHOST=<hote> PGPORT=5432 PGUSER=<login>   # base où create_schema.sql a été exécuté
+bash/tests/test_compare_ase.sh
+```
+
+## Tester `compare.py` seul
 
 ```
 cd python

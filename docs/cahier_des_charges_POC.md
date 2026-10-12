@@ -66,8 +66,9 @@ Les options `-t`, `-b` et `-m` de l'ancien script sont supprimées.
 
 ## 6. Partie 1 : extraction (bash, `Compare_instance_V3.sh` allégé)
 
-- On conserve uniquement `extract_data` et `run_isql`. On supprime `compare_data`, `format_result` et `send_report_mail`.
-- Connexion via `isql`. Le mot de passe ASE n'est pas passé en clair dans la ligne de commande (visible dans `ps`) : fichier temporaire en mode 600 ou variable d'environnement.
+- Le nouveau script `bash/compare_ase.sh` reprend uniquement la partie extraction (`extract_data` et `run_isql`) de `Compare_instance_V3.sh`, conservé pour référence. `compare_data`, `format_result` et `send_report_mail` sont supprimés.
+- Les requêtes d'extraction sont dans `bash/queries/<module>.sql` (requêtes de départ issues de V3, à remplacer par les requêtes validées), avec `__DB__` remplacé par le nom de la base.
+- Connexion via `isql`. Le mot de passe ASE n'est pas passé en argument (visible dans `ps`) : il est envoyé à `isql` sur l'entrée standard.
 - Sortie : **un CSV par module et par côté**, avec en-têtes, séparateur fixe, `NULL` explicite, sans espaces de remplissage et sans troncature.
 - Dossier de travail dédié par `run_id`, nettoyé en fin d'exécution.
 - Le bash appelle ensuite `compare.py` avec le `run_id`, le `refid` et les chemins des CSV.

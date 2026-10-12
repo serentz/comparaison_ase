@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Faux isql pour tester compare_ase.sh sans instance ASE.
+
+Reproduit les comportements d'isql qui comptent pour le script :
+  - le mot de passe est lu sur la premiere ligne de l'entree standard ;
+  - l'invite "Password:" est affichee devant la premiere ligne de sortie ;
+  - les colonnes sont separees par '|' et remplies d'espaces ;
+  - "(n rows affected)" est affiche en fin de resultat ;
+  - un echec de connexion renvoie un message "Msg ..." mais le code retour 0.
+
+Les donnees viennent des CSV de python/tests/fixtures : le serveur COMPA_FAKE_R1 (defaut ASE1)
+recoit les fichiers r1_*, tout autre serveur les fichiers r2_*.
+
+Variables d'environnement :
+  COMPA_FAKE_PASSWORDS   ex. "ASE1=pw1,ASE2=pw2" : mots de passe attendus par serveur
+  COMPA_FAKE_FAIL        nom d'un serveur dont la connexion echoue
+  COMPA_FAKE_FIXTURES    dossier des CSV (defaut : ../../../python/tests/fixtures)
+"""
+import os
+import re
+import sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+FIXTURES = os.environ.get("COMPA_FAKE_FIXTURES") or os.path.join(HERE, "..", "..", "..", "python", "tests", "fixtures")
+
+
+def parse_args(argv):
+    opts = {}
+    i = 0
+    while i < len(argv):
+        if argv[i] in ("-S", "-D", "-U", "-w", "-s") and i + 1 < len(argv):
+            opts[argv[i]] = argv[i + 1]
+            i += 2
+        else:
+            i += 1
+    return opts
+
+
+def login_failed(server):
+    print(f"Msg 4002, Level 14, State 1:\nServer '{server}':\nLogin failed.")
+    sys.exit(0)        # isql retourne 0 meme en cas d'echec : le script doit lire la sortie
+
+
+def module_of(sql):
+    code = re.sub(r"/\*.*?\*/", " ", sql, flags=re.S).lower()
+    if "@@servername" in code:
+        return "servername"
+    if "sysconfigures" in code:
+        return "inst_config"
+    if "sysusages" in code:
+        return "db_size"
+    if "sysdatabases" in code:
+        return "db_options"
+    if "syscolumns" in code:
+        return "obj_tables"
+    if "sysindexes" in code:
+        return "obj_indexes"
+    if "syscomments" in code:
+        return "obj_source"
+    if "sysobjects" in code:
+        return "obj_code"
+    return None
+
+
+def main():
+    opts = parse_args(sys.argv[1:])
+    server = opts.get("-S", "")
+    lines = sys.stdin.read().split("\n")
+    password, sql = lines[0], "\n".join(lines[1:])
+
+    if os.environ.get("COMPA_FAKE_FAIL") == server:
+        login_failed(server)
+    expected = dict(p.split("=", 1) for p in os.environ.get("COMPA_FAKE_PASSWORDS", "").split(",") if "=" in p)
+    if server in expected and expected[server] != password:
+        login_failed(server)
+
+    sys.stdout.write("Password:")                  # invite sans retour a la ligne
+    module = module_of(sql)
+    if module is None:
+        print("Msg 102, Level 15, State 1:\nIncorrect syntax.")
+        return
+    if module == "servername":
+        print(server)
+        return
+
+    side = "r1" if server == os.environ.get("COMPA_FAKE_R1", "ASE1") else "r2"
+    with open(os.path.join(FIXTURES, f"{side}_{module}.csv"), encoding="utf-8") as fh:
+        rows = [ln.rstrip("\n").split("|") for ln in fh][1:]       # sans l'en-tete : isql -b n'en affiche pas
+    if rows:
+        widths = [max(len(r[i]) for r in rows) + 2 for i in range(len(rows[0]))]
+        for r in rows:
+            print(" | ".join(v.ljust(w) for v, w in zip(r, widths)))    # remplissage d'espaces comme isql
+    print(f"\n({len(rows)} rows affected)")
+
+
+if __name__ == "__main__":
+    main()
