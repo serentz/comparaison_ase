@@ -30,7 +30,8 @@ Le script est rejouable sans perte de données. Le rôle `grafana_ro` (lecture s
 
 ## Documentation
 
-Voir [`docs/cahier_des_charges_POC.md`](docs/cahier_des_charges_POC.md).
+- [`docs/cahier_des_charges_POC.md`](docs/cahier_des_charges_POC.md) : cahier des charges du POC
+- [`docs/format_csv.md`](docs/format_csv.md) : format des CSV produits par le script bash et lus par `compare.py`
 
 ## Sécurité
 
