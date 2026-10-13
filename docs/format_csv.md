@@ -78,14 +78,15 @@ print deadlock information|0|0
 |---|---|
 | `db_name` | Nom de la base (informatif, **non utilisé comme clé**) |
 | `segmap` | Valeur brute de `sysusages.segmap` |
-| `size_mb` | Taille en Mo, somme par `segmap` |
+| `size_mb` | Taille en Mo, somme par `segmap` (`size * @@maxpagesize / 1048576`) |
+| `page_size` | Taille de page du serveur en octets (`@@maxpagesize`), identique sur toutes les lignes |
 
-`compare.py` déduit la colonne `segment` : `log` si `segmap` vaut 4, `mixed` si le bit 4 est combiné à d'autres, `data` sinon. **La clé de comparaison est ce `segment`.**
+`compare.py` déduit la colonne `segment` : `log` si `segmap` vaut 4, `mixed` si le bit 4 est combiné à d'autres, `data` sinon. **La clé de comparaison est ce `segment`.** `compare.py` ajoute un enregistrement de clé spéciale `page_size` qui compare les tailles de page des deux serveurs (une taille différente fait aussi différer les `size_mb` : à lire ensemble).
 
 ```
-db_name|segmap|size_mb
-poc_db|3|100
-poc_db|4|40
+db_name|segmap|size_mb|page_size
+poc_db|3|100|16384
+poc_db|4|40|16384
 ```
 
 ### 4.3 `db_options`

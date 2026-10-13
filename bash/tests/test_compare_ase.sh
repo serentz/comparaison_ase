@@ -59,8 +59,8 @@ check "code retour 0" "$rc" "0"
 dir=$(sed -n 's/^\[+\] CSV conserves dans //p' "$LOG")
 if [ -d "$dir" ]; then
     check "14 fichiers CSV" "$(ls "$dir" | wc -l)" "14"
-    check "en-tete db_size" "$(head -n1 "$dir/r1_db_size.csv")" "db_name|segmap|size_mb"
-    check "remplissage d'isql retire (db_size r1)" "$(sed -n 2p "$dir/r1_db_size.csv")" "poc_db|3|100"
+    check "en-tete db_size" "$(head -n1 "$dir/r1_db_size.csv")" "db_name|segmap|size_mb|page_size"
+    check "remplissage d'isql retire (db_size r1)" "$(sed -n 2p "$dir/r1_db_size.csv")" "poc_db|3|100|16384"
     check "invite et '(n rows affected)' retires" "$(grep -c -E 'Password|rows affected' "$dir"/*.csv | grep -v ':0' | wc -l)" "0"
     check "mot de passe absent des CSV" "$(grep -l pw_test "$dir"/*.csv | wc -l)" "0"
     check "permissions du dossier 700" "$(stat -c %a "$dir")" "700"
@@ -90,7 +90,7 @@ P -q -c "update compa_ase.config_compa_ase set password='pw_test1' where instanc
 # CSV invalide : une requete qui renvoie un nombre de colonnes incorrect -> compare.py code 2, run en ERREUR
 COMPA_FAKE_FIXTURES=$(mktemp -d)
 cp "$HERE/../../python/tests/fixtures/"*.csv "$COMPA_FAKE_FIXTURES/"
-printf 'db_name|segmap|size_mb\npoc_db|3\n' > "$COMPA_FAKE_FIXTURES/r1_db_size.csv"
+printf 'db_name|segmap|size_mb|page_size\npoc_db|3\n' > "$COMPA_FAKE_FIXTURES/r1_db_size.csv"
 export COMPA_FAKE_FIXTURES
 cmd >"$LOG" 2>&1; rc=$?
 check "CSV invalide -> 2 (compare.py)" "$rc" "2"

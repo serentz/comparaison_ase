@@ -2,7 +2,7 @@
   "annotations": {
     "list": []
   },
-  "description": "Taille de la base par segment (données / journal). R1 = instance 1 / base 1, R2 = instance 2 / base 2.",
+  "description": "Taille de la base par segment (données / journal) et taille de page du serveur (@@maxpagesize). R1 = instance 1 / base 1, R2 = instance 2 / base 2.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -378,7 +378,7 @@
           "editorMode": "code",
           "format": "table",
           "rawQuery": true,
-          "rawSql": "select case type_diff when 'ONLY_R1' then 'Seulement R1' when 'ONLY_R2' then 'Seulement R2' else 'Différent' end as \"Type\", segment as \"Segment\", r1_segmap as \"R1 segmap\", r1_size_mb as \"R1 taille (Mo)\", r2_segmap as \"R2 segmap\", r2_size_mb as \"R2 taille (Mo)\", (r2_size_mb - r1_size_mb) as \"Écart R2-R1 (Mo)\", case when type_diff = 'DIFF' then nullif(concat_ws(', ', case when r1_segmap is distinct from r2_segmap then 'segmap' end, case when r1_size_mb is distinct from r2_size_mb then 'size_mb' end), '') end as \"Champs en écart\", case when attendu then 'Oui' else '' end as \"Attendu\" from compa_ase.diff_db_size where run_id = nullif(${run:sqlstring}, '')::bigint order by type_diff, segment",
+          "rawSql": "select case type_diff when 'ONLY_R1' then 'Seulement R1' when 'ONLY_R2' then 'Seulement R2' else 'Différent' end as \"Type\", segment as \"Segment\", r1_segmap as \"R1 segmap\", r1_size_mb as \"R1 taille (Mo)\", r1_page_size as \"R1 page (octets)\", r2_segmap as \"R2 segmap\", r2_size_mb as \"R2 taille (Mo)\", r2_page_size as \"R2 page (octets)\", (r2_size_mb - r1_size_mb) as \"Écart R2-R1 (Mo)\", case when type_diff = 'DIFF' then nullif(concat_ws(', ', case when r1_segmap is distinct from r2_segmap then 'segmap' end, case when r1_size_mb is distinct from r2_size_mb then 'size_mb' end, case when r1_page_size is distinct from r2_page_size then 'page_size' end), '') end as \"Champs en écart\", case when attendu then 'Oui' else '' end as \"Attendu\" from compa_ase.diff_db_size where run_id = nullif(${run:sqlstring}, '')::bigint order by type_diff, segment",
           "refId": "A"
         }
       ],

@@ -130,10 +130,16 @@ CREATE TABLE IF NOT EXISTS compa_ase.diff_db_size (
     segment      text        NOT NULL,
     r1_segmap    text,
     r1_size_mb   numeric,
+    r1_page_size integer,
     r2_segmap    text,
     r2_size_mb   numeric,
+    r2_page_size integer,
     CONSTRAINT ux_diff_db_size UNIQUE (run_id, segment)
 );
+
+-- Mise a niveau : comparaison de la taille de page (segment special 'page_size')
+ALTER TABLE compa_ase.diff_db_size ADD COLUMN IF NOT EXISTS r1_page_size integer;
+ALTER TABLE compa_ase.diff_db_size ADD COLUMN IF NOT EXISTS r2_page_size integer;
 
 -- 3.3 db_options : une seule ligne par run (pas de cle)
 --     r1_options / r2_options : options decodees, lisibles dans Grafana

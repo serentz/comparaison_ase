@@ -1,3 +1,3 @@
-db_name|segmap|size_mb
-poc_db|3|100
-poc_db|4|40
+db_name|segmap|size_mb|page_size
+poc_db|3|100|16384
+poc_db|4|40|16384

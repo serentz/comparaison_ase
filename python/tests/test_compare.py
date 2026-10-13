@@ -106,6 +106,14 @@ class ComparisonTest(unittest.TestCase):
         size = {d.key_text: d for d in self.results["db_size"]}["data"]
         self.assertEqual((str(size.rec1["size_mb"]), str(size.rec2["size_mb"])), ("100", "120"))
 
+    def test_page_size_difference_is_reported(self):
+        mod = [m for m in compare.MODULES if m.name == "db_size"][0]
+        rows = lambda p: [(2, {"db_name": "x", "segmap": "3", "size_mb": "10", "page_size": p})]
+        a = mod.prepare(mod, rows("2048"), "r1", {})
+        b = mod.prepare(mod, rows("16384"), "r2", {})
+        self.assertEqual(a[("page_size",)]["page_size"], 2048)
+        self.assertNotEqual(a[("page_size",)]["page_size"], b[("page_size",)]["page_size"])
+
     def test_source_only_side_keeps_text(self):
         d = {x.key_text: x for x in self.results["obj_source"]}["sp_purge_orders.P"]
         self.assertIsNone(d.rec2)

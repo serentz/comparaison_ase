@@ -148,11 +148,17 @@ def segment_of(segmap: int) -> str:
 
 def prepare_db_size(mod: Module, rows, path: str, ctx: Dict[str, Any]) -> Prepared:
     agg: Dict[str, Dict[str, Any]] = {}
+    page_size: Optional[int] = None
     for lineno, raw in rows:
         segmap = cast(raw["segmap"], "int", path, lineno, "segmap")
         size = cast(raw["size_mb"], "num", path, lineno, "size_mb")
         if segmap is None or size is None:
             raise CsvError(f"{path} ligne {lineno} : segmap et size_mb sont obligatoires")
+        page = cast(raw["page_size"], "int", path, lineno, "page_size")
+        if page is not None:
+            if page_size is not None and page != page_size:
+                raise CsvError(f"{path} ligne {lineno} : page_size incoherent ({page} et {page_size})")
+            page_size = page
         a = agg.setdefault(segment_of(segmap), {"segmaps": set(), "size": Decimal(0)})
         a["segmaps"].add(segmap)
         a["size"] += size
@@ -162,7 +168,10 @@ def prepare_db_size(mod: Module, rows, path: str, ctx: Dict[str, Any]) -> Prepar
             "segment": segment,
             "segmap": "/".join(str(s) for s in sorted(a["segmaps"])),
             "size_mb": a["size"],
+            "page_size": None,
         }
+    if page_size is not None:      # taille de page du serveur (@@maxpagesize, en octets) : cle speciale
+        out[("page_size",)] = {"segment": "page_size", "segmap": None, "size_mb": None, "page_size": page_size}
     return out
 
 
@@ -265,8 +274,8 @@ MODULES: List[Module] = [
         ["name"], ["value", "value_in_use"], ["value", "value_in_use"], "diff_inst_config",
     ),
     Module(
-        "db_size", ["db_name", "segmap", "size_mb"], [],
-        ["segment"], ["segmap", "size_mb"], ["segmap", "size_mb"], "diff_db_size",
+        "db_size", ["db_name", "segmap", "size_mb", "page_size"], [],
+        ["segment"], ["segmap", "size_mb", "page_size"], ["segmap", "size_mb", "page_size"], "diff_db_size",
         prepare=prepare_db_size,
     ),
     Module(

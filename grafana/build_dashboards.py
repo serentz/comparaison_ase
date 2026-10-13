@@ -62,8 +62,9 @@ def main_table_sql(key):
                 f"from {t} where {WHERE_RUN} order by type_diff, name")
     if key == "db_size":
         return (f"select {TYPE_SQL}, segment as \"Segment\", r1_segmap as \"R1 segmap\", "
-                f"r1_size_mb as \"R1 taille (Mo)\", r2_segmap as \"R2 segmap\", r2_size_mb as \"R2 taille (Mo)\", "
-                f"(r2_size_mb - r1_size_mb) as \"Écart R2-R1 (Mo)\", {champs(['segmap', 'size_mb'])}, {ATTENDU_SQL} "
+                f"r1_size_mb as \"R1 taille (Mo)\", r1_page_size as \"R1 page (octets)\", "
+                f"r2_segmap as \"R2 segmap\", r2_size_mb as \"R2 taille (Mo)\", r2_page_size as \"R2 page (octets)\", "
+                f"(r2_size_mb - r1_size_mb) as \"Écart R2-R1 (Mo)\", {champs(['segmap', 'size_mb', 'page_size'])}, {ATTENDU_SQL} "
                 f"from {t} where {WHERE_RUN} order by type_diff, segment")
     if key == "db_options":
         return (f"select {TYPE_SQL}, r1_options as \"R1 options\", r2_options as \"R2 options\", "
@@ -280,7 +281,7 @@ def module_dashboard(key, uid, title, table_name):
     ids = Ids()
     descriptions = {
         "inst_config": "Paramètres de configuration de l'instance (sysconfigures).",
-        "db_size": "Taille de la base par segment (données / journal).",
+        "db_size": "Taille de la base par segment (données / journal) et taille de page du serveur (@@maxpagesize).",
         "db_options": "Options de la base de données (sysdatabases).",
         "obj_tables": "Structure des tables : colonnes, types, nullabilité.",
         "obj_indexes": "Index. La date des statistiques est ignorée par défaut (règle d'exclusion).",

@@ -25,8 +25,9 @@ INST_R1 = INST_COMMON + [("deadlock retries", "5", "5"), ("print deadlock inform
 INST_R2 = INST_COMMON + [("deadlock retries", "10", "10"), ("print deadlock information", "1", "1")]
 
 # --- db_size / db_options ---------------------------------------------------
-DB_SIZE_R1 = [("poc_db", "3", "100"), ("poc_db", "4", "40")]
-DB_SIZE_R2 = [("poc_db", "3", "120"), ("poc_db", "4", "50")]
+PAGE = "16384"      # @@maxpagesize identique des deux cotes (propriete du serveur, pas de la base)
+DB_SIZE_R1 = [("poc_db", "3", "100", PAGE), ("poc_db", "4", "40", PAGE)]
+DB_SIZE_R2 = [("poc_db", "3", "120", PAGE), ("poc_db", "4", "50", PAGE)]
 DB_OPTIONS_R1 = [("poc_db", "4", "0", "0", "0")]      # select into/bulkcopy/pllsort
 DB_OPTIONS_R2 = [("poc_db", "8", "0", "0", "0")]      # trunc log on chkpt
 
@@ -228,7 +229,7 @@ def obj_source(side):
 # --- ecriture -----------------------------------------------------------------
 HEADERS = {
     "inst_config": ["name", "value", "value_in_use"],
-    "db_size": ["db_name", "segmap", "size_mb"],
+    "db_size": ["db_name", "segmap", "size_mb", "page_size"],
     "db_options": ["db_name", "status", "status2", "status3", "status4"],
     "obj_tables": ["table_name", "column_name", "type_name", "length", "prec", "scale", "status"],
     "obj_indexes": ["table_name", "index_name", "status", "columns", "statstamp"],
