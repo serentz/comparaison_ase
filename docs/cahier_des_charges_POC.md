@@ -83,7 +83,7 @@ Pour chaque module : chargement des deux CSV en mémoire, jointure par clé, dé
 | `db_size` | segmap (mappé data / log / mixed), hors nom de base | taille en Mo |
 | `db_options` | ligne unique | status, status2, status3, status4 |
 | `obj_tables` | table + colonne | type, length, prec, scale, status décodé |
-| `obj_indexes` | table + index | status (la date `statstamp` est exclue par défaut) |
+| `obj_indexes` | table + index | status, colonnes de l'index (la date `statstamp` est exclue par défaut) |
 | `obj_code` | name + type | présence |
 | `obj_source` | name + type | hash MD5 du code reconstitué (`colid`), texte stocké à part |
 
@@ -160,9 +160,9 @@ Avant exécution, adapter le chemin des devices (`physname`) en tête de chaque 
 |---|---|
 | `inst_config` | `deadlock retries` : 5 / 10 ; `print deadlock information` : 0 / 1 |
 | `db_size` | data : 100 Mo / 120 Mo ; log : 40 Mo / 50 Mo |
-| `db_options` | `select into/bulkcopy/pllsort` actif en base 1 ; `trunc log on chkpt` et `abort tran on log full` actifs en base 2 |
+| `db_options` | `select into/bulkcopy` actif en base 1 ; `trunc log on chkpt` et `abort tran on log full` actifs en base 2 |
 | `obj_tables` | `customers.email` varchar(100) / varchar(150) ; `customers.phone` nullable / not null ; `orders.total_amount` numeric(12,2) / numeric(14,2) ; `order_items.discount` seulement en base 1 ; `products.barcode` seulement en base 2 ; table `tmp_import` seulement en base 1 ; table `archive_orders` seulement en base 2 |
-| `obj_indexes` | `idx_orders_date` seulement en base 1 ; `idx_orders_customer` seulement en base 2 ; `pk_products` clustered / nonclustered ; `uq_customers_email` unique / non unique ; dates de statistiques de `customers` différentes (bruit, couvert par une règle d'exclusion) |
+| `obj_indexes` | `idx_orders_date` seulement en base 1 ; `idx_orders_customer` seulement en base 2 ; `pk_products` clustered / nonclustered ; `uq_customers_email` unique sur (email) / non unique sur (email, phone) ; dates de statistiques de `customers` différentes (bruit, couvert par une règle d'exclusion) |
 | `obj_code` | `sp_purge_orders` (P) et `trg_customers_upd` (TR) seulement en base 1 ; `sp_archive_orders` (P) et `v_customer_orders` (V) seulement en base 2 |
 | `obj_source` | contenu différent : `sp_get_customer`, `sp_calc_order_total` (code long sur plusieurs blocs `syscomments`, écart dans le dernier bloc), `v_orders_summary`, `trg_orders_audit` |
 | Témoins sans écart | table `audit_log`, procédure `sp_list_products`, index `idx_customers_name` et `idx_order_items_order` |

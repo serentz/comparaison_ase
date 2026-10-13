@@ -1,10 +1,10 @@
-table_name|index_name|status|statstamp
-customers|idx_customers_name|0|2026-10-12 11:05:00
-customers|pk_customers|2066|2026-10-12 11:05:00
-customers|uq_customers_email|2|2026-10-12 11:05:00
-products|pk_products|2066|NULL
-orders|pk_orders|2066|NULL
-order_items|pk_order_items|2066|NULL
-order_items|idx_order_items_order|0|NULL
-audit_log|pk_audit_log|2066|NULL
-orders|idx_orders_date|0|NULL
+table_name|index_name|status|columns|statstamp
+customers|idx_customers_name|0|last_name,first_name|2026-10-12 11:05:00
+customers|pk_customers|2066|customer_id|2026-10-12 11:05:00
+customers|uq_customers_email|2|email|2026-10-12 11:05:00
+products|pk_products|2066|product_id|NULL
+orders|pk_orders|2066|order_id|NULL
+order_items|pk_order_items|2066|order_item_id|NULL
+order_items|idx_order_items_order|0|order_id|NULL
+audit_log|pk_audit_log|2066|log_id|NULL
+orders|idx_orders_date|0|order_date|NULL

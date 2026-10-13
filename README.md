@@ -46,7 +46,7 @@ bash/compare_ase.sh -S ASE1 -D poc_db -s ASE2 -d poc_db -U <login_pg> -H <hote_p
 
 Le script vérifie le schéma PostgreSQL, lit les logins ASE dans `config_compa_ase`, crée ou retrouve le `refid`, ouvre un `run_id`, extrait les 7 modules des deux côtés, puis appelle `python/compare.py`. Le mot de passe ASE est transmis à `isql` par l'entrée standard, jamais en argument.
 
-Les requêtes d'extraction sont dans `bash/queries/<module>.sql` : ce sont des requêtes de départ reprises de `Compare_instance_V3.sh`, **à remplacer par les requêtes validées**. Seules les colonnes décrites dans `docs/format_csv.md` comptent.
+Les requêtes d'extraction sont dans `bash/queries/<module>.sql` : ce sont les requêtes validées en production (script client), sauf `obj_indexes` (liste des colonnes par `index_col`, à valider sur ASE). Seules les colonnes décrites dans `docs/format_csv.md` comptent.
 
 | Code retour | Signification |
 |---|---|

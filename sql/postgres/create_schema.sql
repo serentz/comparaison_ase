@@ -196,11 +196,17 @@ CREATE TABLE IF NOT EXISTS compa_ase.diff_obj_indexes (
     table_name    text        NOT NULL,
     index_name    text        NOT NULL,
     r1_status     text,
+    r1_columns    text,
     r1_statstamp  timestamp,
     r2_status     text,
+    r2_columns    text,
     r2_statstamp  timestamp,
     CONSTRAINT ux_diff_obj_indexes UNIQUE (run_id, table_name, index_name)
 );
+
+-- Mise a niveau d'un schema cree avant l'ajout de la comparaison des colonnes d'index
+ALTER TABLE compa_ase.diff_obj_indexes ADD COLUMN IF NOT EXISTS r1_columns text;
+ALTER TABLE compa_ase.diff_obj_indexes ADD COLUMN IF NOT EXISTS r2_columns text;
 
 -- 3.6 obj_code : presence des vues (V), procedures (P) et triggers (TR)
 --     cle = object_name + object_type

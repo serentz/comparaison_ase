@@ -166,25 +166,39 @@ def prepare_db_size(mod: Module, rows, path: str, ctx: Dict[str, Any]) -> Prepar
     return out
 
 
-# Decodage partiel de sysdatabases.status (a valider contre sp_helpdb pendant les tests sur ASE)
-_DB_STATUS_BITS = [
-    (4, "select into/bulkcopy/pllsort"),
-    (8, "trunc log on chkpt"),
-    (16, "no chkpt on recovery"),
-    (512, "ddl in tran"),
-    (1024, "read only"),
-    (2048, "dbo use only"),
-    (4096, "single user"),
-    (8192, "allow nulls by default"),
-]
+# Decodage de sysdatabases.status / status2 / status3 (bits valides sur le script en production)
+_DB_STATUS_BITS = {
+    "status": [
+        (4, "select into/bulkcopy"),
+        (8, "trunc log on chkpt"),
+        (16, "no chkpt on recovery"),
+        (512, "ddl in tran"),
+        (1024, "read only"),
+        (2048, "dbo use only"),
+        (4096, "single user"),
+    ],
+    "status2": [
+        (1, "allow nulls by default"),
+        (4, "auto identity"),
+        (8, "identity nonunique"),
+        (16, "async log service"),
+        (64, "close on last detach"),
+        (128, "mixed log and data"),
+        (1024, "scratch database"),
+    ],
+    "status3": [
+        (2, "deferred table allocation"),
+    ],
+}
 
 
 def derive_db_options(rec: Record) -> None:
-    status = rec["status"] or 0
-    names = [label for bit, label in _DB_STATUS_BITS if status & bit]
-    for extra in ("status2", "status3", "status4"):
-        if rec[extra]:
-            names.append(f"{extra}={rec[extra]}")
+    names = []
+    for col, bits in _DB_STATUS_BITS.items():
+        value = rec[col] or 0
+        names.extend(label for bit, label in bits if value & bit)
+    if rec["status4"]:
+        names.append(f"status4={rec['status4']}")
     rec["options"] = ", ".join(names)
 
 
@@ -273,10 +287,11 @@ MODULES: List[Module] = [
         derive=derive_obj_tables,
     ),
     Module(
-        "obj_indexes", ["table_name", "index_name", "status", "statstamp"],
+        "obj_indexes", ["table_name", "index_name", "status", "columns", "statstamp"],
         [("table_name", "table_name", "text"), ("index_name", "index_name", "text"),
-         ("status", "status", "int"), ("statstamp", "statstamp", "ts")],
-        ["table_name", "index_name"], ["status", "statstamp"], ["status", "statstamp"], "diff_obj_indexes",
+         ("status", "status", "int"), ("columns", "columns", "text"), ("statstamp", "statstamp", "ts")],
+        ["table_name", "index_name"], ["status", "columns", "statstamp"], ["status", "columns", "statstamp"],
+        "diff_obj_indexes",
     ),
     Module(
         "obj_code", ["object_name", "object_type"],

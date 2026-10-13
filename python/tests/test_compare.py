@@ -69,6 +69,11 @@ class ComparisonTest(unittest.TestCase):
         self.assertEqual(keys(self.results, "obj_tables", "ONLY_R2"),
                          {"products.barcode", "archive_orders.order_id", "archive_orders.archived_at"})
 
+    def test_indexes_columns_difference_is_reported(self):
+        res = [r for r in self.results["obj_indexes"] if r.key == ("customers", "uq_customers_email")][0]
+        self.assertEqual((res.rec1["columns"], res.rec2["columns"]), ("email", "email,phone"))
+        self.assertIn("columns", res.cols)
+
     def test_indexes_statstamp_noise_is_ignored(self):
         found = keys(self.results, "obj_indexes")
         self.assertEqual(found, {"customers.uq_customers_email", "products.pk_products",
@@ -96,7 +101,7 @@ class ComparisonTest(unittest.TestCase):
         self.assertEqual(by_key["customers.phone"].rec1["attributs"], "NULL")
         self.assertEqual(by_key["customers.phone"].rec2["attributs"], "NOT NULL")
         opts = self.results["db_options"][0]
-        self.assertEqual(opts.rec1["options"], "select into/bulkcopy/pllsort")
+        self.assertEqual(opts.rec1["options"], "select into/bulkcopy")
         self.assertEqual(opts.rec2["options"], "trunc log on chkpt")
         size = {d.key_text: d for d in self.results["db_size"]}["data"]
         self.assertEqual((str(size.rec1["size_mb"]), str(size.rec2["size_mb"])), ("100", "120"))

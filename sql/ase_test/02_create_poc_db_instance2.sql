@@ -15,7 +15,7 @@
                    orders.total_amount numeric(14,2), products.barcode (seul ici),
                    table archive_orders (seule ici)
      obj_indexes : idx_orders_customer (seul ici), pk_products nonclustered,
-                   uq_customers_email non unique, pas d'update statistics
+                   uq_customers_email non unique sur (email, phone), pas d'update statistics
      obj_code    : sp_archive_orders, v_customer_orders (seuls ici)
      obj_source  : sp_get_customer, sp_calc_order_total (TVA 1.21),
                    v_orders_summary, trg_orders_audit
@@ -156,7 +156,7 @@ go
 create nonclustered index idx_customers_name on customers (last_name, first_name)
 go
 /* meme nom que dans la base 1 mais NON unique */
-create nonclustered index uq_customers_email on customers (email)
+create nonclustered index uq_customers_email on customers (email, phone)
 go
 create nonclustered index idx_order_items_order on order_items (order_id)
 go

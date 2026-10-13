@@ -38,7 +38,7 @@ declare -A HEADERS=(
     [db_size]="db_name|segmap|size_mb"
     [db_options]="db_name|status|status2|status3|status4"
     [obj_tables]="table_name|column_name|type_name|length|prec|scale|status"
-    [obj_indexes]="table_name|index_name|status|statstamp"
+    [obj_indexes]="table_name|index_name|status|columns|statstamp"
     [obj_code]="object_name|object_type"
     [obj_source]="object_name|object_type|colid|text_hex"
 )

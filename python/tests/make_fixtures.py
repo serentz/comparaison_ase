@@ -71,22 +71,23 @@ def tables(side):
     return rows
 
 
-# --- obj_indexes : (table, index, status, statstamp) --------------------------
+# --- obj_indexes : (table, index, status, columns, statstamp) --------------------------
 # status : 2 = unique, 16 = clustered, 2048 = cle primaire
 def indexes(side):
     r2 = side == 2
     stamp = "1970-01-01 00:00:00" if r2 else "2026-10-12 11:05:00"   # update statistics sur customers (base 1 seulement)
     rows = [
-        ("customers", "idx_customers_name", "0", stamp),
-        ("customers", "pk_customers", "2066", stamp),
-        ("customers", "uq_customers_email", "0" if r2 else "2", stamp),
-        ("products", "pk_products", "2050" if r2 else "2066", NULL),
-        ("orders", "pk_orders", "2066", NULL),
-        ("order_items", "pk_order_items", "2066", NULL),
-        ("order_items", "idx_order_items_order", "0", NULL),
-        ("audit_log", "pk_audit_log", "2066", NULL),
+        ("customers", "idx_customers_name", "0", "last_name,first_name", stamp),
+        ("customers", "pk_customers", "2066", "customer_id", stamp),
+        ("customers", "uq_customers_email", "0" if r2 else "2", "email,phone" if r2 else "email", stamp),
+        ("products", "pk_products", "2050" if r2 else "2066", "product_id", NULL),
+        ("orders", "pk_orders", "2066", "order_id", NULL),
+        ("order_items", "pk_order_items", "2066", "order_item_id", NULL),
+        ("order_items", "idx_order_items_order", "0", "order_id", NULL),
+        ("audit_log", "pk_audit_log", "2066", "log_id", NULL),
     ]
-    rows.append(("orders", "idx_orders_customer", "0", NULL) if r2 else ("orders", "idx_orders_date", "0", NULL))
+    rows.append(("orders", "idx_orders_customer", "0", "customer_id", NULL) if r2
+                else ("orders", "idx_orders_date", "0", "order_date", NULL))
     return rows
 
 
@@ -230,7 +231,7 @@ HEADERS = {
     "db_size": ["db_name", "segmap", "size_mb"],
     "db_options": ["db_name", "status", "status2", "status3", "status4"],
     "obj_tables": ["table_name", "column_name", "type_name", "length", "prec", "scale", "status"],
-    "obj_indexes": ["table_name", "index_name", "status", "statstamp"],
+    "obj_indexes": ["table_name", "index_name", "status", "columns", "statstamp"],
     "obj_code": ["object_name", "object_type"],
     "obj_source": ["object_name", "object_type", "colid", "text_hex"],
 }

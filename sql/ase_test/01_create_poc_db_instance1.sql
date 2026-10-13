@@ -10,7 +10,7 @@
    Ecarts volontaires par rapport a 02_create_poc_db_instance2.sql :
      inst_config : deadlock retries = 5, print deadlock information = 0
      db_size     : data 100 MB, log 40 MB
-     db_options  : select into/bulkcopy/pllsort
+     db_options  : select into/bulkcopy
      obj_tables  : customers.email varchar(100), customers.phone nullable,
                    orders.total_amount numeric(12,2), order_items.discount (seul ici),
                    table tmp_import (seule ici)
@@ -59,7 +59,7 @@ go
 create database poc_db on poc_data = 100 log on poc_log = 40
 go
 
-sp_dboption poc_db, "select into/bulkcopy/pllsort", true
+sp_dboption poc_db, "select into/bulkcopy", true
 go
 
 use poc_db

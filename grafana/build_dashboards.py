@@ -81,9 +81,9 @@ def main_table_sql(key):
                 f"from {t} where {WHERE_RUN} order by type_diff, table_name, column_name")
     if key == "obj_indexes":
         return (f"select {TYPE_SQL}, table_name as \"Table\", index_name as \"Index\", "
-                f"r1_status as \"R1 status\", to_char(r1_statstamp, 'YYYY-MM-DD HH24:MI:SS') as \"R1 statistiques\", "
-                f"r2_status as \"R2 status\", to_char(r2_statstamp, 'YYYY-MM-DD HH24:MI:SS') as \"R2 statistiques\", "
-                f"{champs(['status', 'statstamp'])}, {ATTENDU_SQL} "
+                f"r1_status as \"R1 status\", r1_columns as \"R1 colonnes\", to_char(r1_statstamp, 'YYYY-MM-DD HH24:MI:SS') as \"R1 statistiques\", "
+                f"r2_status as \"R2 status\", r2_columns as \"R2 colonnes\", to_char(r2_statstamp, 'YYYY-MM-DD HH24:MI:SS') as \"R2 statistiques\", "
+                f"{champs(['status', 'columns', 'statstamp'])}, {ATTENDU_SQL} "
                 f"from {t} where {WHERE_RUN} order by type_diff, table_name, index_name")
     if key == "obj_code":
         return (f"select {TYPE_SQL}, object_name as \"Nom\", "

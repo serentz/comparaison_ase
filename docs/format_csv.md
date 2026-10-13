@@ -134,14 +134,15 @@ orders|total_amount|numeric|6|12|2|0
 | `table_name` | Nom de la table (**clé**, avec `index_name`) |
 | `index_name` | Nom de l'index (**clé**) |
 | `status` | `sysindexes.status` brut |
-| `statstamp` | Date des statistiques, `YYYY-MM-DD HH:MM:SS` ou `NULL` |
+| `columns` | Colonnes de l'index dans l'ordre des clés, séparées par `,` (`index_col`), sans espace |
+| `statstamp` | Date des statistiques (`max(sysstatistics.moddate)` de la table), `YYYY-MM-DD HH:MM:SS` ou `NULL` |
 
 `compare.py` accepte aussi le format par défaut d'ASE (`Oct 12 2026 11:00AM`). La différence sur `statstamp` seule est ignorée par la règle d'exclusion par défaut de `exclusion_rules`.
 
 ```
-table_name|index_name|status|statstamp
-customers|idx_customers_name|0|2026-10-12 11:00:00
-orders|pk_orders|2048|NULL
+table_name|index_name|status|columns|statstamp
+customers|idx_customers_name|0|last_name,first_name|2026-10-12 11:00:00
+orders|pk_orders|2048|order_id|NULL
 ```
 
 ### 4.6 `obj_code`
@@ -171,7 +172,7 @@ Le code source est découpé par ASE en blocs de 255 caractères (`syscomments`)
 
 `compare.py` reconstitue le code par objet (tri sur `colid`, décodage), calcule le hash MD5 et le nombre de lignes, et ne stocke le texte complet que pour les objets en écart.
 
-Piste côté ASE, à valider sur ton instance : `bintostr(convert(varbinary(255), c.text))` pour produire l'hexadécimal.
+Côté ASE (validé en production) : `bintostr(convert(varbinary(255), c.text))` produit l'hexadécimal sans préfixe `0x`.
 
 ```
 object_name|object_type|colid|text_hex
@@ -209,7 +210,7 @@ VALUES ('inst_config', 'deadlock%', '*', 'ATTENDU', 'Paramètre volontairement d
 | `db_size` | `diff_db_size` | `r1_segmap`, `r1_size_mb`, `r2_segmap`, `r2_size_mb` |
 | `db_options` | `diff_db_options` | `r1_status`…`r1_status4`, `r1_options`, idem `r2_` |
 | `obj_tables` | `diff_obj_tables` | `r1_type`, `r1_length`, `r1_prec`, `r1_scale`, `r1_status`, `r1_attributs`, idem `r2_` |
-| `obj_indexes` | `diff_obj_indexes` | `r1_status`, `r1_statstamp`, idem `r2_` |
+| `obj_indexes` | `diff_obj_indexes` | `r1_status`, `r1_columns`, `r1_statstamp`, idem `r2_` |
 | `obj_code` | `diff_obj_code` | `r1_present`, `r2_present` |
 | `obj_source` | `diff_obj_source` | `r1_hash`, `r1_nb_lignes`, `r1_source`, idem `r2_` |
 
