@@ -136,6 +136,7 @@ Le script est rejouable sans perte de données. Le rôle `grafana_ro` (lecture s
 
 - [`docs/cahier_des_charges_POC.md`](docs/cahier_des_charges_POC.md) : cahier des charges du POC
 - [`docs/installation_vm.md`](docs/installation_vm.md) : création des VM Hyper-V
+- [`docs/premiere_execution.md`](docs/premiere_execution.md) : liste de contrôle avant une première exécution sur un nouvel environnement
 - [`docs/format_csv.md`](docs/format_csv.md) : format des CSV produits par le script bash et lus par `compare.py`
 
 ## Sécurité
