@@ -1,51 +1,121 @@
 <#
 .SYNOPSIS
-  Cree le reseau et les 4 VM Hyper-V du POC comparaison_ase (generation 2, Linux).
+  Cree le reseau et les 4 VM Hyper-V du POC comparaison_ase, OS installes automatiquement.
 
 .DESCRIPTION
-  - un commutateur interne + NAT (192.168.50.0/24 par defaut, passerelle .1 = le PC hote) ;
-  - 4 VM : pg01 (Ubuntu), bastion (Ubuntu), ase01 et ase02 (CentOS) ;
-  - chaque VM a son disque VHDX, son ISO monte, le demarrage UEFI sur l'ISO et Secure Boot au modele
-    "Microsoft UEFI Certificate Authority" (obligatoire pour Linux en generation 2).
-  Le script n'installe pas l'OS : demarrer les VM puis suivre docs/installation_vm.md.
-  Il peut etre relance : ce qui existe deja est ignore.
+  - commutateur interne + NAT (192.168.50.0/24, passerelle .1 = le PC hote) ;
+  - 4 VM generation 2 : pg01 et bastion (Ubuntu Server, autoinstall), ase01 et ase02 (CentOS Stream, kickstart) ;
+  - chaque VM recoit un petit disque "graine" (CIDATA / OEMDRV) avec sa configuration : IP fixe, nom,
+    utilisateur, SSH, disque entier, /etc/hosts ;
+  - le script attend la fin des installations (les VM s'eteignent seules), retire ISO et disques graines,
+    redemarre les VM et attend que SSH reponde.
+  Rejouable : -Destroy supprime toutes les VM du POC pour recommencer de zero.
 
 .EXAMPLE
-  .\create_vms.ps1 -UbuntuIso I:\ISO\ubuntu-24.04-live-server-amd64.iso -CentosIso I:\ISO\CentOS-Stream-9-latest-x86_64-dvd1.iso
+  .\create_vms.ps1 -UbuntuIso "K:\ShareLinux\Image ISO\ubuntu-24.04.5-live-server-amd64.iso" -CentosIso "K:\ShareLinux\Image ISO\CentOS-Stream-9-20260316.0-x86_64-dvd1.iso"
 
-  A lancer dans PowerShell ouvert en administrateur. Fonctionnalite Windows "Hyper-V" requise.
+.EXAMPLE
+  .\create_vms.ps1 -Destroy        # supprime les 4 VM et leurs disques
+
+  PowerShell ouvert en administrateur. Fonctionnalite Windows "Hyper-V" requise.
 #>
 #Requires -RunAsAdministrator
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][string]$UbuntuIso,
-    [Parameter(Mandatory)][string]$CentosIso,
+    [string]$UbuntuIso,
+    [string]$CentosIso,
     [string]$VmRoot     = 'I:\POC\HyperV',
     [string]$SwitchName = 'compa-net',
-    [string]$Subnet     = '192.168.50',     # trois premiers octets, masque /24
-    [switch]$Start                          # demarre les VM a la fin
+    [string]$Subnet     = '192.168.50',       # trois premiers octets, masque /24
+    [string]$AdminUser  = 'admin01',          # utilisateur cree sur les 4 VM
+    [securestring]$AdminPassword,             # sinon demande a la saisie
+    [string]$SshPublicKeyFile,                # defaut : ~\.ssh\id_ed25519.pub ou id_rsa.pub s'ils existent
+    [string]$Keyboard   = 'fr',
+    [int]$InstallTimeoutMin = 60,
+    [switch]$Destroy,                         # supprime les VM du POC (et rien d'autre)
+    [switch]$NoConsole                        # n'ouvre pas les consoles
 )
 
 $ErrorActionPreference = 'Stop'
+$Here = $PSScriptRoot
 
-foreach ($iso in @($UbuntuIso, $CentosIso)) {
-    if (-not (Test-Path -LiteralPath $iso -PathType Leaf)) {
-        throw "Il faut le chemin complet d'un fichier .iso (pas d'un dossier) : $iso"
-    }
-}
+# Nom, OS, vCPU, RAM (Go), disque (Go), derniere partie de l'adresse IP
+$vms = @(
+    @{ Name = 'bastion'; Os = 'ubuntu'; Cpu = 2; MemGB = 4; DiskGB = 30; Ip = 10 },
+    @{ Name = 'pg01';    Os = 'ubuntu'; Cpu = 2; MemGB = 4; DiskGB = 30; Ip = 11 },
+    @{ Name = 'ase01';   Os = 'centos'; Cpu = 2; MemGB = 4; DiskGB = 40; Ip = 21 },
+    @{ Name = 'ase02';   Os = 'centos'; Cpu = 2; MemGB = 4; DiskGB = 40; Ip = 22 }
+)
+
 if (-not (Get-Command New-VM -ErrorAction SilentlyContinue)) {
     throw "Module Hyper-V absent. Activer la fonctionnalite Windows Hyper-V (Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All), redemarrer, relancer."
 }
 
-# Nom, ISO, vCPU, RAM (Go), disque (Go), derniere partie de l'adresse IP
-$vms = @(
-    @{ Name = 'pg01';    Iso = $UbuntuIso; Cpu = 2; MemGB = 4; DiskGB = 30; Ip = 11 },
-    @{ Name = 'bastion'; Iso = $UbuntuIso; Cpu = 2; MemGB = 4; DiskGB = 30; Ip = 10 },
-    @{ Name = 'ase01';   Iso = $CentosIso; Cpu = 2; MemGB = 4; DiskGB = 40; Ip = 21 },
-    @{ Name = 'ase02';   Iso = $CentosIso; Cpu = 2; MemGB = 4; DiskGB = 40; Ip = 22 }
-)
+# --- Mode -Destroy ---------------------------------------------------------------
+if ($Destroy) {
+    Write-Warning "Va supprimer les VM $($vms.Name -join ', ') et leurs disques dans $VmRoot."
+    if ((Read-Host "Taper OUI pour confirmer") -ne 'OUI') { Write-Host "Annule."; return }
+    foreach ($v in $vms) {
+        $vm = Get-VM -Name $v.Name -ErrorAction SilentlyContinue
+        if ($vm) {
+            if ($vm.State -ne 'Off') { Stop-VM -Name $v.Name -TurnOff -Force }
+            Remove-VM -Name $v.Name -Force
+            Write-Host "[-] VM $($v.Name) supprimee"
+        }
+        $dir = Join-Path $VmRoot $v.Name
+        if (Test-Path -LiteralPath $dir) { Remove-Item -LiteralPath $dir -Recurse -Force }
+    }
+    Write-Host "Reseau '$SwitchName' conserve. Relancer le script sans -Destroy pour recreer les VM."
+    return
+}
 
-# --- Reseau : commutateur interne + NAT --------------------------------------
+# --- Controles -------------------------------------------------------------------
+foreach ($p in @(@('UbuntuIso', $UbuntuIso), @('CentosIso', $CentosIso))) {
+    if (-not $p[1] -or -not (Test-Path -LiteralPath $p[1] -PathType Leaf)) {
+        throw "-$($p[0]) : il faut le chemin complet d'un fichier .iso existant (pas d'un dossier)."
+    }
+}
+$existing = $vms | Where-Object { Get-VM -Name $_.Name -ErrorAction SilentlyContinue }
+if ($existing) {
+    throw "VM deja presentes : $($existing.Name -join ', '). Relancer avec -Destroy pour tout supprimer et recommencer."
+}
+
+# Mot de passe
+if (-not $AdminPassword) {
+    $s1 = Read-Host "Mot de passe de '$AdminUser' sur les 4 VM (8 caracteres min.)" -AsSecureString
+    $s2 = Read-Host "Confirmer le mot de passe" -AsSecureString
+    $plain1 = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s1))
+    $plain2 = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($s2))
+    if ($plain1 -ne $plain2) { throw "Les deux mots de passe different." }
+    $Password = $plain1
+} else {
+    $Password = [Runtime.InteropServices.Marshal]::PtrToStringBSTR([Runtime.InteropServices.Marshal]::SecureStringToBSTR($AdminPassword))
+}
+# Caracteres autorises : evitent tout probleme de guillemets dans YAML et kickstart
+if ($Password -notmatch '^[A-Za-z0-9!@#%^*_+=.,:;/?-]{8,}$') {
+    throw "Mot de passe : 8 caracteres minimum, parmi lettres, chiffres et !@#%^*_+=.,:;/?- (pas d'espace, guillemet, \ ni `$)."
+}
+if ($AdminUser -notmatch '^[a-z][a-z0-9_-]{0,30}$') { throw "-AdminUser : minuscules, chiffres, - et _ (commence par une lettre)." }
+
+# Cle SSH publique (facultative)
+if (-not $SshPublicKeyFile) {
+    foreach ($c in @('id_ed25519.pub', 'id_rsa.pub')) {
+        $f = Join-Path $HOME ".ssh\$c"
+        if (Test-Path -LiteralPath $f) { $SshPublicKeyFile = $f; break }
+    }
+}
+$sshKey = $null
+if ($SshPublicKeyFile -and (Test-Path -LiteralPath $SshPublicKeyFile)) {
+    $sshKey = (Get-Content -LiteralPath $SshPublicKeyFile -TotalCount 1).Trim()
+    if ($sshKey -notmatch '^(ssh-[a-z0-9]+|ecdsa-[a-z0-9-]+) [A-Za-z0-9+/=]+( .*)?$' -or $sshKey -match '["''\\]') {
+        throw "Cle publique illisible dans $SshPublicKeyFile"
+    }
+    Write-Host "[i] Cle SSH publique ajoutee : $SshPublicKeyFile"
+} else {
+    Write-Host "[i] Pas de cle SSH publique : connexion par mot de passe uniquement."
+}
+
+# --- Reseau : commutateur interne + NAT --------------------------------------------
 if (-not (Get-VMSwitch -Name $SwitchName -ErrorAction SilentlyContinue)) {
     Write-Host "[+] Commutateur interne '$SwitchName'"
     New-VMSwitch -Name $SwitchName -SwitchType Internal | Out-Null
@@ -57,48 +127,138 @@ if (-not (Get-NetIPAddress -InterfaceAlias $alias -IPAddress "$Subnet.1" -ErrorA
 }
 $nat = Get-NetNat -ErrorAction SilentlyContinue
 if (-not ($nat | Where-Object { $_.InternalIPInterfaceAddressPrefix -eq "$Subnet.0/24" })) {
-    if ($nat) {
-        Write-Warning "Un NAT existe deja ($($nat[0].InternalIPInterfaceAddressPrefix)) : Windows n'en autorise souvent qu'un. Si l'etape suivante echoue, supprimer l'ancien (Remove-NetNat) ou choisir un autre -Subnet."
-    }
     Write-Host "[+] NAT $Subnet.0/24 (acces Internet des VM)"
     New-NetNat -Name $SwitchName -InternalIPInterfaceAddressPrefix "$Subnet.0/24" | Out-Null
 }
 
-# --- VM -----------------------------------------------------------------------
+# --- Disque graine (volume FAT32 avec la configuration d'installation) ---------------
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+function New-SeedDisk {
+    param([string]$Path, [string]$Label, [hashtable]$Files)
+    New-VHD -Path $Path -SizeBytes 128MB -Dynamic | Out-Null
+    $number = (Mount-VHD -Path $Path -Passthru | Get-Disk).Number
+    try {
+        Initialize-Disk -Number $number -PartitionStyle MBR
+        $part = New-Partition -DiskNumber $number -UseMaximumSize -AssignDriveLetter
+        $vol = Format-Volume -Partition $part -FileSystem FAT32 -NewFileSystemLabel $Label -Force -Confirm:$false
+        $root = "$($vol.DriveLetter):\"
+        foreach ($name in $Files.Keys) {
+            [IO.File]::WriteAllText((Join-Path $root $name), ($Files[$name] -replace "`r`n", "`n"), $utf8)
+        }
+    } finally {
+        Dismount-VHD -Path $Path
+    }
+}
+
+function Expand-Template {
+    param([string]$TemplateFile, [hashtable]$Values)
+    $t = Get-Content -LiteralPath (Join-Path $Here "templates\$TemplateFile") -Raw
+    foreach ($k in $Values.Keys) { $t = $t.Replace("{{$k}}", [string]$Values[$k]) }
+    return $t
+}
+
+$hostsPlain = ($vms | Sort-Object { $_.Ip } | ForEach-Object { "{0}.{1}  {2}" -f $Subnet, $_.Ip, $_.Name }) -join "`n"
+$hostsYaml  = ($hostsPlain -split "`n" | ForEach-Object { "          $_" }) -join "`n"
+
+# --- Creation des VM --------------------------------------------------------------------
 foreach ($v in $vms) {
     $name = $v.Name
-    if (Get-VM -Name $name -ErrorAction SilentlyContinue) {
-        Write-Host "[=] VM $name existe deja : verification de sa configuration"
-    } else {
-        $dir = Join-Path $VmRoot $name
-        New-Item -ItemType Directory -Path $dir -Force | Out-Null
-        Write-Host "[+] VM $name ($($v.Cpu) vCPU, $($v.MemGB) Go, disque $($v.DiskGB) Go)"
-        New-VM -Name $name -Generation 2 -Path $VmRoot `
-            -MemoryStartupBytes ([uint64]$v.MemGB * 1GB) `
-            -NewVHDPath (Join-Path $dir "$name.vhdx") -NewVHDSizeBytes ([uint64]$v.DiskGB * 1GB) `
-            -SwitchName $SwitchName | Out-Null
-    }
-    # Configuration rejouable : un echec precedent ne laisse pas une VM a moitie configuree
+    $dir  = Join-Path $VmRoot $name
+    New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    Write-Host "[+] VM $name ($($v.Os), $($v.Cpu) vCPU, $($v.MemGB) Go, disque $($v.DiskGB) Go, $Subnet.$($v.Ip))"
+
+    New-VM -Name $name -Generation 2 -Path $VmRoot `
+        -MemoryStartupBytes ([uint64]$v.MemGB * 1GB) `
+        -NewVHDPath (Join-Path $dir "$name.vhdx") -NewVHDSizeBytes ([uint64]$v.DiskGB * 1GB) `
+        -SwitchName $SwitchName | Out-Null
     Set-VMProcessor -VMName $name -Count $v.Cpu
     Set-VMMemory -VMName $name -DynamicMemoryEnabled $false
     Set-VM -Name $name -AutomaticCheckpointsEnabled $false
-    $dvd = Get-VMDvdDrive -VMName $name | Select-Object -First 1
-    if (-not $dvd) { $dvd = Add-VMDvdDrive -VMName $name -Path $v.Iso -Passthru }
-    else { Set-VMDvdDrive -VMName $name -ControllerNumber $dvd.ControllerNumber -ControllerLocation $dvd.ControllerLocation -Path $v.Iso }
-    $dvd = Get-VMDvdDrive -VMName $name | Select-Object -First 1
-    Set-VMFirmware -VMName $name -FirstBootDevice $dvd -EnableSecureBoot On `
-        -SecureBootTemplate 'MicrosoftUEFICertificateAuthority'
+
+    # Configuration d'installation
+    $iso = if ($v.Os -eq 'ubuntu') { $UbuntuIso } else { $CentosIso }
+    $values = @{
+        NAME = $name; IP = "$Subnet.$($v.Ip)"; GATEWAY = "$Subnet.1"; USER = $AdminUser
+        PASSWORD = $Password; KEYBOARD = $Keyboard
+    }
+    $seed = Join-Path $dir "seed-$name.vhdx"
+    if ($v.Os -eq 'ubuntu') {
+        $values.SSHKEYS = if ($sshKey) { "[""$sshKey""]" } else { "[]" }
+        $values.HOSTS   = $hostsYaml
+        New-SeedDisk -Path $seed -Label 'CIDATA' -Files @{
+            'user-data' = (Expand-Template 'ubuntu-user-data.tpl' $values)
+            'meta-data' = "instance-id: $name-install`nlocal-hostname: $name`n"
+        }
+    } else {
+        $values.SSHKEYS = if ($sshKey) { "sshkey --username=$AdminUser ""$sshKey""" } else { "" }
+        $values.HOSTS   = $hostsPlain
+        New-SeedDisk -Path $seed -Label 'OEMDRV' -Files @{
+            'ks.cfg' = (Expand-Template 'centos-ks.cfg.tpl' $values)
+        }
+    }
+    Add-VMHardDiskDrive -VMName $name -Path $seed -ControllerType SCSI -ControllerNumber 0 -ControllerLocation 1
+
+    # ISO, Secure Boot Linux, ordre de demarrage : disque systeme puis DVD
+    # (disque vide au premier demarrage -> l'ISO ; apres installation -> le disque, sans toucher a l'ISO)
+    $dvd = Add-VMDvdDrive -VMName $name -Path $iso -Passthru
+    $os  = Get-VMHardDiskDrive -VMName $name | Where-Object { $_.Path -like "*\$name.vhdx" }
+    Set-VMFirmware -VMName $name -EnableSecureBoot On -SecureBootTemplate 'MicrosoftUEFICertificateAuthority' `
+        -BootOrder $os, $dvd
 }
 
-# --- Resume ---------------------------------------------------------------------
+# --- Installation automatique -------------------------------------------------------------
+Start-VM -Name $vms.Name
+if (-not $NoConsole) { foreach ($v in $vms) { Start-Process vmconnect.exe -ArgumentList 'localhost', $v.Name } }
+
 Write-Host ""
-Write-Host "Plan d'adressage (a configurer dans chaque OS, voir docs/installation_vm.md) :"
-Write-Host "  passerelle : $Subnet.1 (PC hote)   DNS : 8.8.8.8 (ou le DNS de ton reseau)"
-$vms | ForEach-Object { '  {0,-8} {1}.{2}' -f $_.Name, $Subnet, $_.Ip } | Write-Host
+Write-Host "Installation en cours dans les 4 VM (10 a 20 minutes, en parallele)."
+Write-Host "  - Ubuntu (bastion, pg01) : si la console demande 'Continue with autoinstall?', taper  yes  puis Entree."
+Write-Host "  - CentOS (ase01, ase02)  : si le menu du demarrage attend, choisir 'Install CentOS Stream 9' (Entree)."
+Write-Host "Les VM s'eteignent toutes seules a la fin : ne rien faire d'autre."
 
-if ($Start) {
-    $vms | ForEach-Object { Start-VM -Name $_.Name }
-    Write-Host "VM demarrees : ouvrir chaque console (vmconnect localhost <nom>) pour lancer l'installation."
-} else {
-    Write-Host "Demarrage : Start-VM -Name pg01,bastion,ase01,ase02   puis   vmconnect localhost pg01"
+$pending  = [System.Collections.ArrayList]@($vms.Name)
+$deadline = (Get-Date).AddMinutes($InstallTimeoutMin)
+while ($pending.Count -gt 0) {
+    if ((Get-Date) -gt $deadline) {
+        throw "Delai de $InstallTimeoutMin min depasse, VM encore en cours : $($pending -join ', '). Verifier leurs consoles."
+    }
+    Start-Sleep -Seconds 20
+    foreach ($n in @($pending)) {
+        if ((Get-VM -Name $n).State -eq 'Off') {
+            Write-Host "[ok] $n : installation terminee"
+            $pending.Remove($n)
+        }
+    }
 }
+
+# --- Nettoyage : ISO et disques graines (ils contiennent le mot de passe) --------------------
+foreach ($v in $vms) {
+    $n = $v.Name
+    Get-VMDvdDrive -VMName $n | Set-VMDvdDrive -Path $null
+    Get-VMHardDiskDrive -VMName $n | Where-Object { $_.Path -like "*seed-$n.vhdx" } | Remove-VMHardDiskDrive
+    Remove-Item -LiteralPath (Join-Path (Join-Path $VmRoot $n) "seed-$n.vhdx") -Force -ErrorAction SilentlyContinue
+}
+
+# --- Premier demarrage et attente de SSH ---------------------------------------------------------
+Start-VM -Name $vms.Name
+Write-Host "[i] VM redemarrees, attente de SSH..."
+function Test-Port($ip, $port) {
+    $c = New-Object Net.Sockets.TcpClient
+    try { return $c.ConnectAsync($ip, $port).Wait(1500) } catch { return $false } finally { $c.Close() }
+}
+$deadline = (Get-Date).AddMinutes(10)
+$up = @{}
+while ($up.Count -lt $vms.Count -and (Get-Date) -lt $deadline) {
+    foreach ($v in $vms) {
+        if (-not $up.ContainsKey($v.Name) -and (Test-Port "$Subnet.$($v.Ip)" 22)) { $up[$v.Name] = $true }
+    }
+    if ($up.Count -lt $vms.Count) { Start-Sleep -Seconds 10 }
+}
+
+Write-Host ""
+foreach ($v in ($vms | Sort-Object { $_.Ip })) {
+    $state = if ($up.ContainsKey($v.Name)) { 'SSH ok' } else { 'SSH ne repond pas (voir la console)' }
+    Write-Host ("  {0,-8} {1}.{2,-3} ssh {3}@{1}.{2}   {4}" -f $v.Name, $Subnet, $v.Ip, $AdminUser, $state)
+}
+Write-Host ""
+Write-Host "Etape suivante : docs/installation_vm.md section 'Suite' (PostgreSQL sur pg01)."
