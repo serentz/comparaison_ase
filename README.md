@@ -1,7 +1,44 @@
 # comparaison_ase
 
-POC de comparaison de deux couples **instance / base de données** SAP ASE 16.0.
-Les écarts sont enregistrés dans PostgreSQL et affichés dans Grafana (un dashboard par module).
+Compare deux couples **instance / base de données** SAP ASE 16.0 et montre les écarts dans Grafana.
+
+Pour chaque comparaison, un script extrait la configuration, la taille, les options, les tables, les index
+et le code (procédures, vues, triggers) des deux côtés. Un programme Python compare les extractions et
+enregistre les différences dans PostgreSQL. Grafana les affiche : une synthèse, puis un dashboard par module,
+avec le détail ligne à ligne du code source.
+
+> **Statut : POC, version 0.1** ([`CHANGELOG.md`](CHANGELOG.md)). Validé de bout en bout sur deux serveurs
+> ASE 16.0 SP03 PL10 (Rocky Linux 8.10). Non testé en dehors de ce cadre : lis le code et les limites connues
+> avant de l'utiliser sur des bases importantes.
+
+![Synthèse des écarts dans Grafana](images/R0.1/ase_reel/0_synthese.png)
+
+## Comment ça marche
+
+```
+ ASE 1 ──┐                                                     ┌── Grafana
+         ├── isql ──> CSV ──> compare.py ──> PostgreSQL ──────┤   (synthèse + 7 dashboards)
+ ASE 2 ──┘   (bash/compare_ase.sh)        (schéma compa_ase)   └── historique des runs
+```
+
+- **Extraction** (`bash/`) : `isql` exécute les requêtes de `bash/queries/` sur chaque instance. Le mot de passe ASE est transmis par l'entrée standard, jamais en argument.
+- **Comparaison** (`python/compare.py`) : bibliothèque standard Python 3.8+ uniquement, enregistrement via `psql`. Écarts typés `ONLY_R1`, `ONLY_R2` ou `DIFF`, avec règles d'exclusion pour le bruit connu.
+- **Stockage** (`sql/postgres/`) : schéma `compa_ase`, un historique de tous les runs.
+- **Affichage** (`grafana/`) : 8 dashboards générés et provisionnés, navigation entre modules.
+
+## Prérequis
+
+| Élément | Version |
+|---|---|
+| SAP ASE | 16.0 (testé : SP03 PL10) |
+| Client `isql` (Open Client) | Sur la machine qui lance le script |
+| PostgreSQL | Testé avec la version 16 |
+| Python | 3.8 ou plus, sans dépendance pip |
+| `psql` | Client PostgreSQL |
+| Grafana OSS | Version récente (testé en octobre 2026) |
+
+Un environnement de test complet (4 VM Hyper-V créées automatiquement, deux ASE d'essai avec des écarts
+connus) est décrit dans [`docs/installation_vm.md`](docs/installation_vm.md).
 
 ## Modules comparés
 
@@ -105,3 +142,16 @@ Le script est rejouable sans perte de données. Le rôle `grafana_ro` (lecture s
 
 Aucun mot de passe ni fichier de configuration sensible ne doit être versionné.
 Les logins ASE sont lus dans la table PostgreSQL `config_compa_ase`.
+
+## Licence
+
+[MIT](LICENSE). Le logiciel est fourni sans garantie : teste-le sur des bases de test avant tout usage ailleurs.
+
+## Marques et logiciels tiers
+
+Projet indépendant, non affilié à SAP SE. SAP, Sybase et Adaptive Server Enterprise sont des marques de SAP SE.
+Ce dépôt ne contient **aucun logiciel SAP** : l'installation d'ASE (édition Express ou licence) est à ta charge et
+soumise à ses propres conditions. Il n'embarque pas non plus PostgreSQL, Grafana ni les systèmes d'exploitation
+mentionnés dans les guides, qui ont chacun leur licence. Seuls des fichiers de configuration, des requêtes et du
+code écrits pour ce projet sont publiés.
+

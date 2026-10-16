@@ -1,7 +1,7 @@
 # Format des CSV d'extraction (contrat bash → Python)
 
 Ce document définit ce que le script bash d'extraction doit produire et ce que `compare.py` lit.
-Les requêtes ASE peuvent être celles de ton choix (par exemple celles validées chez le client) tant que les **fichiers et colonnes ci-dessous sont respectés**.
+Les requêtes ASE peuvent être celles de ton choix (par exemple celles que tu utilises déjà) tant que les **fichiers et colonnes ci-dessous sont respectés**.
 
 ## 1. Appel de `compare.py`
 
