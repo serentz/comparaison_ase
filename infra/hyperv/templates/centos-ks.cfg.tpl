@@ -18,9 +18,17 @@ clearpart --all --initlabel --drives=sda
 autopart --type=lvm
 bootloader --location=mbr
 
-%packages
+# Outils utiles a ASE (extraction de l'archive, bibliotheques) ; --ignoremissing : un nom absent ne bloque pas l'installation
+%packages --ignoremissing
 @^minimal-environment
 openssh-server
+tar
+bzip2
+unzip
+libaio
+ncurses-compat-libs
+nc
+net-tools
 %end
 
 %post
