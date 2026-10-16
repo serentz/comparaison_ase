@@ -14,6 +14,17 @@ DATA_DIR="${DATA_DIR:-$SYBASE_DIR/data}"
 # shellcheck disable=SC1091
 source "$SYBASE_DIR/SYBASE.sh"
 
+# Contournement du CR 824104 (ASE 16.0 SP03 : SIGSEGV dans Snap::Validate au demarrage).
+# Le flag -T11889 desactive cette validation. srvbuildres et startserver lancent tous
+# "dataserver" : on le remplace par un petit script qui ajoute le flag (idempotent).
+BIN="$SYBASE/$SYBASE_ASE/bin"
+if [ ! -e "$BIN/dataserver.bin" ]; then
+  mv "$BIN/dataserver" "$BIN/dataserver.bin"
+  printf '#!/bin/sh\nexec "%s/dataserver.bin" -T11889 "$@"\n' "$BIN" > "$BIN/dataserver"
+  chmod 755 "$BIN/dataserver"
+  echo "Contournement CR 824104 installe (dataserver -> dataserver.bin -T11889)."
+fi
+
 read -rsp "Mot de passe sa pour $NAME : " PW; echo
 read -rsp "Confirmer : " PW2; echo
 [ "$PW" = "$PW2" ] || { echo "Les mots de passe different." >&2; exit 1; }
