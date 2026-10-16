@@ -33,10 +33,10 @@ PowerShell en administrateur, depuis le dossier du dépôt :
 
 ```
 Set-ExecutionPolicy -Scope Process Bypass
-.\infra\hyperv\create_vms.ps1 -UbuntuIso I:\ISO\ubuntu-24.04-live-server-amd64.iso -CentosIso I:\ISO\CentOS-Stream-9-latest-x86_64-dvd1.iso
+.\infra\hyperv\create_vms.ps1 -UbuntuIso "I:\ISO\ubuntu-24.04-live-server-amd64.iso" -CentosIso "I:\ISO\CentOS-Stream-9-latest-x86_64-dvd1.iso"
 ```
 
-Le script crée :
+Les deux options attendent le chemin complet du fichier `.iso`, pas celui du dossier. Le script crée :
 - un commutateur interne `compa-net` et un NAT 192.168.50.0/24 ;
 - les 4 VM en génération 2, mémoire fixe, ISO monté, démarrage sur l'ISO, Secure Boot avec le modèle *Microsoft UEFI Certificate Authority* (sans lui, Linux ne démarre pas en génération 2) ;
 - aucun point de contrôle automatique.

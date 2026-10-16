@@ -29,7 +29,9 @@ param(
 $ErrorActionPreference = 'Stop'
 
 foreach ($iso in @($UbuntuIso, $CentosIso)) {
-    if (-not (Test-Path -LiteralPath $iso)) { throw "ISO introuvable : $iso" }
+    if (-not (Test-Path -LiteralPath $iso -PathType Leaf)) {
+        throw "Il faut le chemin complet d'un fichier .iso (pas d'un dossier) : $iso"
+    }
 }
 if (-not (Get-Command New-VM -ErrorAction SilentlyContinue)) {
     throw "Module Hyper-V absent. Activer la fonctionnalite Windows Hyper-V (Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All), redemarrer, relancer."
@@ -66,24 +68,24 @@ if (-not ($nat | Where-Object { $_.InternalIPInterfaceAddressPrefix -eq "$Subnet
 foreach ($v in $vms) {
     $name = $v.Name
     if (Get-VM -Name $name -ErrorAction SilentlyContinue) {
-        Write-Host "[=] VM $name existe deja, ignoree"
-        continue
+        Write-Host "[=] VM $name existe deja : verification de sa configuration"
+    } else {
+        $dir = Join-Path $VmRoot $name
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+        Write-Host "[+] VM $name ($($v.Cpu) vCPU, $($v.MemGB) Go, disque $($v.DiskGB) Go)"
+        New-VM -Name $name -Generation 2 -Path $VmRoot `
+            -MemoryStartupBytes ([uint64]$v.MemGB * 1GB) `
+            -NewVHDPath (Join-Path $dir "$name.vhdx") -NewVHDSizeBytes ([uint64]$v.DiskGB * 1GB) `
+            -SwitchName $SwitchName | Out-Null
     }
-    $dir = Join-Path $VmRoot $name
-    New-Item -ItemType Directory -Path $dir -Force | Out-Null
-    Write-Host "[+] VM $name ($($v.Cpu) vCPU, $($v.MemGB) Go, disque $($v.DiskGB) Go)"
-
-    New-VM -Name $name -Generation 2 -Path $VmRoot `
-        -MemoryStartupBytes ([uint64]$v.MemGB * 1GB) `
-        -NewVHDPath (Join-Path $dir "$name.vhdx") -NewVHDSizeBytes ([uint64]$v.DiskGB * 1GB) `
-        -SwitchName $SwitchName | Out-Null
+    # Configuration rejouable : un echec precedent ne laisse pas une VM a moitie configuree
     Set-VMProcessor -VMName $name -Count $v.Cpu
     Set-VMMemory -VMName $name -DynamicMemoryEnabled $false
     Set-VM -Name $name -AutomaticCheckpointsEnabled $false
-    Enable-VMIntegrationService -VMName $name -Name 'Guest Service Interface'
-
-    Add-VMDvdDrive -VMName $name -Path $v.Iso
-    $dvd = Get-VMDvdDrive -VMName $name
+    $dvd = Get-VMDvdDrive -VMName $name | Select-Object -First 1
+    if (-not $dvd) { $dvd = Add-VMDvdDrive -VMName $name -Path $v.Iso -Passthru }
+    else { Set-VMDvdDrive -VMName $name -ControllerNumber $dvd.ControllerNumber -ControllerLocation $dvd.ControllerLocation -Path $v.Iso }
+    $dvd = Get-VMDvdDrive -VMName $name | Select-Object -First 1
     Set-VMFirmware -VMName $name -FirstBootDevice $dvd -EnableSecureBoot On `
         -SecureBootTemplate 'MicrosoftUEFICertificateAuthority'
 }
