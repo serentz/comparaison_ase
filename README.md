@@ -16,6 +16,7 @@ Les écarts sont enregistrés dans PostgreSQL et affichés dans Grafana (un dash
 | `python/` | `compare.py` (comparaison des CSV et insertion dans PostgreSQL) et `tests/` (tests automatisés, CSV factices) |
 | `sql/postgres/` | `create_schema.sql` : schéma PostgreSQL `compa_ase` (références, runs, configuration, exclusions, 7 tables `diff_<module>`, vues Grafana) |
 | `sql/ase_test/` | Deux scripts créant la base `poc_db` avec des écarts volontaires (instance 1 et instance 2) |
+| `infra/hyperv/` | `create_vms.ps1` : réseau et 4 VM Hyper-V. Guide : `docs/installation_vm.md` |
 | `grafana/` | 8 dashboards JSON (synthèse + 7 modules, navigation par barre de liens), générateur, provisioning, tests. Voir `grafana/README.md` |
 
 ## Lancer une comparaison
@@ -95,6 +96,7 @@ Le script est rejouable sans perte de données. Le rôle `grafana_ro` (lecture s
 ## Documentation
 
 - [`docs/cahier_des_charges_POC.md`](docs/cahier_des_charges_POC.md) : cahier des charges du POC
+- [`docs/installation_vm.md`](docs/installation_vm.md) : création des VM Hyper-V
 - [`docs/format_csv.md`](docs/format_csv.md) : format des CSV produits par le script bash et lus par `compare.py`
 
 ## Sécurité
