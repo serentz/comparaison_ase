@@ -239,13 +239,15 @@ show_isql_error() {
 }
 
 # Corps de CSV : retire lignes vides et "(n rows affected)", espaces de remplissage d'isql
+# et le '|' que cet isql ajoute en tete et en fin de ligne avec -s '|' (sinon 2 colonnes vides en trop)
 csv_body() {
     sed -E \
         -e '/^[[:space:]]*$/d' \
         -e '/^\([0-9]+ rows? affected\)/d' \
         -e 's/[[:space:]]*\|[[:space:]]*/|/g' \
         -e 's/^[[:space:]]+//' \
-        -e 's/[[:space:]]+$//'
+        -e 's/[[:space:]]+$//' \
+        -e 's/^\|(.*)\|$/\1/'
 }
 
 check_ase() {   # $1 = cote, $2 = instance
