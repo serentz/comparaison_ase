@@ -183,7 +183,8 @@ foreach ($v in $vms) {
     }
     $seed = Join-Path $dir "seed-$name.vhdx"
     if ($v.Os -eq 'ubuntu') {
-        $values.SSHKEYS = if ($sshKey) { "[""$sshKey""]" } else { "[]" }
+        # ssh_authorized_keys ne doit jamais etre une liste vide : la ligne est omise sans cle
+        $values.SSHKEYS = if ($sshKey) { "ssh_authorized_keys: [""$sshKey""]" } else { "" }
         $values.HOSTS   = $hostsYaml
         New-SeedDisk -Path $seed -Label 'CIDATA' -Files @{
             'user-data' = (Expand-Template 'ubuntu-user-data.tpl' $values)

@@ -35,7 +35,7 @@ autoinstall:
         groups: [sudo]
         shell: /bin/bash
         lock_passwd: false
-        ssh_authorized_keys: {{SSHKEYS}}
+        {{SSHKEYS}}
     chpasswd:
       expire: false
       users:
