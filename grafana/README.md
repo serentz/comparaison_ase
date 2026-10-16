@@ -15,8 +15,8 @@ Ne pas éditer les JSON à la main : modifier le générateur puis le relancer.
 ## Installation (bastion Ubuntu)
 
 1. Installer Grafana OSS selon la documentation officielle (dépôt apt grafana.com), puis `sudo systemctl enable --now grafana-server`.
-2. Définir le mot de passe du rôle `grafana_ro` dans PostgreSQL (voir README racine).
-3. Déclarer les variables dans `/etc/default/grafana-server` (fichier en `chmod 600`, non versionné) :
+2. Activer le rôle `grafana_ro` et lui définir un mot de passe (il est créé en `NOLOGIN`, sans mot de passe). Sur `pg01`, en `compa_app` : `psql -h 127.0.0.1 -U compa_app -d compa -c "ALTER ROLE grafana_ro LOGIN"` puis `\password grafana_ro` dans psql.
+3. **Ajouter** (sans remplacer le fichier : il contient déjà les réglages par défaut de Grafana) les variables à la fin de `/etc/default/grafana-server`, non versionné. Mot de passe sans espace, `#` ni guillemet (fichier lu par systemd) :
 
 ```
 COMPA_PG_HOST=pg01

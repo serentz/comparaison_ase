@@ -109,4 +109,11 @@ psql -h 127.0.0.1 -U compa_app -d compa -f ~/create_schema.sql
 psql -h 127.0.0.1 -U compa_app -d compa -c "\dt compa_ase.*"      # 12 tables
 ```
 
+Rôle de lecture pour Grafana (créé `NOLOGIN` par le schéma) :
+
+```
+psql -h 127.0.0.1 -U compa_app -d compa -c "ALTER ROLE grafana_ro LOGIN"
+psql -h 127.0.0.1 -U compa_app -d compa     # puis : \password grafana_ro
+```
+
 Ensuite : ASE 16.0 Developer Edition sur `ase01` et `ase02` (puis `sql/ase_test/`), client `isql`, Python et Grafana sur `bastion` (`grafana/README.md`).
