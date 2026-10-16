@@ -66,6 +66,8 @@ Limite connue du POC : le propriétaire des objets n'est pas extrait, les objets
 | `value` | Valeur configurée |
 | `value_in_use` | Valeur en cours d'utilisation |
 
+Un nom doit apparaître une seule fois. Sur ASE 16 certains noms sont répétés (`default data cache`, une ligne par taille de pool) : la requête `bash/queries/inst_config.sql` regroupe par nom et garde la valeur maximale.
+
 ```
 name|value|value_in_use
 deadlock retries|5|5
