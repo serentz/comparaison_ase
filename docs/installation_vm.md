@@ -53,6 +53,13 @@ Options utiles : `-AdminUser`, `-SshPublicKeyFile` (par défaut `~\.ssh\id_ed255
 
 Après confirmation (`OUI`), supprime les 4 VM et leurs disques. Le réseau est conservé. Relancer ensuite la commande de la section 2.
 
+`-Only` limite l'opération à certaines VM, par exemple pour refaire seulement les serveurs ASE avec un autre OS :
+
+```
+.\infra\hyperv\create_vms.ps1 -Destroy -Only ase01,ase02
+.\infra\hyperv\create_vms.ps1 -Only ase01,ase02 -CentosIso "K:\ShareLinux\Image ISO\<AlmaLinux-8 dvd>.iso"
+```
+
 ## 4. En cas de problème
 
 | Symptôme | Piste |

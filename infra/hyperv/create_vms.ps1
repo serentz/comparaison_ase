@@ -9,7 +9,8 @@
     utilisateur, SSH, disque entier, /etc/hosts ;
   - le script attend la fin des installations (les VM s'eteignent seules), retire ISO et disques graines,
     redemarre les VM et attend que SSH reponde.
-  Rejouable : -Destroy supprime toutes les VM du POC pour recommencer de zero.
+  Rejouable : -Destroy supprime les VM du POC pour recommencer de zero ; -Only limite a certaines VM
+  (ex. -Only ase01,ase02 pour changer seulement l'OS des serveurs ASE).
 
 .EXAMPLE
   .\create_vms.ps1 -UbuntuIso "K:\ShareLinux\Image ISO\ubuntu-24.04.5-live-server-amd64.iso" -CentosIso "K:\ShareLinux\Image ISO\CentOS-Stream-9-20260316.0-x86_64-dvd1.iso"
@@ -32,6 +33,7 @@ param(
     [string]$SshPublicKeyFile,                # defaut : ~\.ssh\id_ed25519.pub ou id_rsa.pub s'ils existent
     [string]$Keyboard   = 'fr',
     [int]$InstallTimeoutMin = 60,
+    [string[]]$Only,                          # ne traiter que ces VM, ex. -Only ase01,ase02
     [switch]$Destroy,                         # supprime les VM du POC (et rien d'autre)
     [switch]$NoConsole                        # n'ouvre pas les consoles
 )
@@ -46,6 +48,13 @@ $vms = @(
     @{ Name = 'ase01';   Os = 'centos'; Cpu = 2; MemGB = 4; DiskGB = 40; Ip = 21 },
     @{ Name = 'ase02';   Os = 'centos'; Cpu = 2; MemGB = 4; DiskGB = 40; Ip = 22 }
 )
+
+$allVms = $vms      # /etc/hosts contient toujours les 4 VM
+if ($Only) {
+    $unknown = $Only | Where-Object { $allVms.Name -notcontains $_ }
+    if ($unknown) { throw "-Only : VM inconnue(s) $($unknown -join ', '). Valeurs possibles : $($allVms.Name -join ', ')" }
+    $vms = @($allVms | Where-Object { $Only -contains $_.Name })
+}
 
 if (-not (Get-Command New-VM -ErrorAction SilentlyContinue)) {
     throw "Module Hyper-V absent. Activer la fonctionnalite Windows Hyper-V (Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V-All), redemarrer, relancer."
@@ -70,7 +79,10 @@ if ($Destroy) {
 }
 
 # --- Controles -------------------------------------------------------------------
-foreach ($p in @(@('UbuntuIso', $UbuntuIso), @('CentosIso', $CentosIso))) {
+$needed = @()
+if ($vms | Where-Object { $_.Os -eq 'ubuntu' }) { $needed += ,@('UbuntuIso', $UbuntuIso) }
+if ($vms | Where-Object { $_.Os -eq 'centos' }) { $needed += ,@('CentosIso', $CentosIso) }
+foreach ($p in $needed) {
     if (-not $p[1] -or -not (Test-Path -LiteralPath $p[1] -PathType Leaf)) {
         throw "-$($p[0]) : il faut le chemin complet d'un fichier .iso existant (pas d'un dossier)."
     }
@@ -157,7 +169,7 @@ function Expand-Template {
     return $t
 }
 
-$hostsPlain = ($vms | Sort-Object { $_.Ip } | ForEach-Object { "{0}.{1}  {2}" -f $Subnet, $_.Ip, $_.Name }) -join "`n"
+$hostsPlain = ($allVms | Sort-Object { $_.Ip } | ForEach-Object { "{0}.{1}  {2}" -f $Subnet, $_.Ip, $_.Name }) -join "`n"
 $hostsYaml  = ($hostsPlain -split "`n" | ForEach-Object { "          $_" }) -join "`n"
 
 # --- Creation des VM --------------------------------------------------------------------
