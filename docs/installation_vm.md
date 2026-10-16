@@ -47,7 +47,7 @@ Options : `-VmRoot` (défaut `I:\POC\HyperV`), `-Subnet`, `-SwitchName`, `-Start
 
 Démarrer une VM (`Start-VM -Name pg01`), ouvrir sa console (`vmconnect localhost pg01`), puis :
 
-**Ubuntu** : choisir la langue et le clavier, installer *Ubuntu Server* (minimal), cocher **Install OpenSSH server**, créer ton utilisateur. Le réseau peut rester en DHCP pendant l'installation, il n'y en a pas : la configuration est faite après.
+**Ubuntu** : choisir la langue et le clavier, installer *Ubuntu Server* (minimal), cocher **Install OpenSSH server**, créer ton utilisateur. Le commutateur interne n'a **pas de DHCP** : à l'écran *Network configuration*, sélectionner `eth0`, *Edit IPv4*, méthode *Manual*, puis saisir le sous-réseau `192.168.50.0/24`, l'adresse de la VM, la passerelle `192.168.50.1` et les DNS `8.8.8.8,1.1.1.1`. La section 5 ne sert alors que pour corriger a posteriori.
 
 **CentOS** : choisir *Installation Destination* (disque entier, automatique), créer ton utilisateur avec droits administrateur (cocher « Make this user administrator »), mot de passe root au choix, logiciel *Server* (ou *Minimal Install*).
 
