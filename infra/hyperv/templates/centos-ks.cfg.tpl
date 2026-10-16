@@ -27,6 +27,7 @@ bzip2
 unzip
 libaio
 ncurses-compat-libs
+libnsl
 nc
 net-tools
 %end
