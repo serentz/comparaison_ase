@@ -83,6 +83,8 @@ Les CSV de `tests/fixtures` reproduisent les écarts des scripts `sql/ase_test`.
 
 Installation, provisioning et navigation entre modules : [`grafana/README.md`](grafana/README.md). Tests : `COMPA_TEST_PG=1 COMPA_TEST_DB=compa python3 grafana/tests/test_dashboards.py` (exécute chaque requête de panneau sur PostgreSQL avec les 30 écarts de test).
 
+Captures des dashboards (run de test, 30 écarts) : [`images/R0.1/`](images/R0.1/) — synthèse, un fichier par module.
+
 ## Création du schéma PostgreSQL
 
 ```
