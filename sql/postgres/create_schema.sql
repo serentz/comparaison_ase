@@ -96,6 +96,14 @@ VALUES ('obj_indexes', '%', 'statstamp', 'IGNORE',
         'Date de mise a jour des statistiques : differe presque toujours entre deux instances')
 ON CONFLICT (module, cle_pattern, colonne) DO NOTHING;
 
+-- Mesures calculees par ASE (valeur configuree identique, valeur en cours variable : nom du serveur, etc.)
+INSERT INTO compa_ase.exclusion_rules (module, cle_pattern, colonne, action, motif)
+VALUES ('inst_config', 'executable codesize + overhead', 'value_in_use', 'IGNORE',
+        'Taille du code serveur mesuree au demarrage : varie de quelques unites entre deux instances'),
+       ('inst_config', 'total logical memory', 'value_in_use', 'IGNORE',
+        'Memoire logique calculee par ASE : varie de quelques unites entre deux instances')
+ON CONFLICT (module, cle_pattern, colonne) DO NOTHING;
+
 -- ----------------------------------------------------------------------------
 -- 3. Tables de differences : une par module
 --    Colonnes communes : diff_id, run_id, refid, ts_exec, type_diff, attendu

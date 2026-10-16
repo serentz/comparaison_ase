@@ -359,7 +359,11 @@ class Rule:
 
 
 # Regles appliquees en mode --dry-run (sans acces a PostgreSQL) : identiques a celles du schema
-DEFAULT_RULES = [Rule.make("obj_indexes", "%", "statstamp", "IGNORE")]
+DEFAULT_RULES = [
+    Rule.make("obj_indexes", "%", "statstamp", "IGNORE"),
+    Rule.make("inst_config", "executable codesize + overhead", "value_in_use", "IGNORE"),
+    Rule.make("inst_config", "total logical memory", "value_in_use", "IGNORE"),
+]
 
 
 # ----------------------------------------------------------------------------
