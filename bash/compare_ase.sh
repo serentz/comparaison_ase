@@ -222,7 +222,7 @@ ISQL_OUT=""
 run_isql() {   # $1 = cote (1|2), $2 = instance, $3 = base de contexte, $4 = requete SQL
     local rc
     ISQL_OUT=$(printf '%s\nset nocount on\ngo\n%s\ngo\n' "${ASE_PASS[$1]}" "$4" \
-        | isql -S "$2" -D "$3" -U "${ASE_LOGIN[$1]}" -w 4096 -b -s '|' 2>&1)
+        | LANG="${ASE_LANG:-en_US.UTF-8}" LC_ALL="${ASE_LANG:-en_US.UTF-8}" isql -S "$2" -D "$3" -U "${ASE_LOGIN[$1]}" -w 4096 -b -s '|' 2>&1)
     rc=$?
     # isql peut afficher l'invite "Password:" devant la premiere ligne de sortie
     ISQL_OUT=$(printf '%s\n' "$ISQL_OUT" | tr -d '\r' | sed -e '1s/^Password: *//')
