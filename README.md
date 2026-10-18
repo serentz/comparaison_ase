@@ -55,6 +55,49 @@ connus) est décrit dans [`docs/installation_vm.md`](docs/installation_vm.md).
 | `sql/ase_test/` | Deux scripts créant la base `poc_db` avec des écarts volontaires (instance 1 et instance 2) |
 | `infra/hyperv/` | `create_vms.ps1` + `templates/` : réseau et 4 VM Hyper-V, OS installés automatiquement. Guide : `docs/installation_vm.md` |
 | `grafana/` | 8 dashboards JSON (synthèse + 7 modules, navigation par barre de liens), générateur, provisioning, tests. Voir `grafana/README.md` |
+| `Deploy/` | **Les 4 archives de déploiement** (`compa_ase_depot`, `compa_ase_comparateur`, `compa_ase_grafana`, `compa_ase_serveurs_ase_test`) et leurs empreintes |
+| `packaging/` | `build_packages.sh` : construit les archives de `Deploy/` ; `test_packages.sh` ; modèles des LISEZMOI (voir `docs/deploiement_archives.md`) |
+
+## Le dossier Deploy : archives de déploiement
+
+`Deploy/` contient **les fichiers à copier sur les machines**, prêts à l'emploi : une archive par fonction. On n'a plus besoin de cloner le dépôt sur les VM.
+
+| Archive | À installer sur | Rôle | Ordre |
+|---|---|---|---|
+| `compa_ase_depot.tgz` | la machine PostgreSQL (`pg01`) | PostgreSQL, base `compa`, schéma `compa_ase`, rôle Grafana lecture seule ; `declarer-instance.sh` déclare les instances ASE à comparer | 1 |
+| `compa_ase_serveurs_ase_test.tgz` | `ase01` puis `ase02` (POC uniquement) | serveur SAP ASE 16.0 (`build_server.sh`, contournement CR 824104) et base `poc_db` avec écarts voulus : 30 écarts attendus. **Les binaires SAP ASE ne sont pas fournis** | 2 (option) |
+| `compa_ase_comparateur.tgz` | la machine qui lance les comparaisons (`bastion`) | `compare_ase.sh`, 7 requêtes, `compare.py`, commande `compa_ase`, comparaison quotidienne planifiée (systemd ou cron). **`isql` (SAP Open Client) doit déjà être installé** | 3 |
+| `compa_ase_grafana.tgz` | `bastion` ou une autre machine | Grafana, source de données, 8 dashboards | 4 |
+
+Chaque archive contient, à l'intérieur de son dossier :
+
+- `LISEZMOI.md` : composants à installer, SQL à exécuter, planification (systemd et cron), vérification, mise à jour, désinstallation, dépannage ;
+- `install.sh` et `verify.sh` : installation (rejouable) et contrôles ;
+- `scripts/compa_ase.env.example` : paramètres à copier en `compa_ase.env` (IP, mots de passe) ;
+- `SHA256SUMS` et `VERSION` : contrôle d'intégrité, version.
+
+Pas de `manifeste.txt` Python : `compare.py` n'utilise que la bibliothèque standard (aucun paquet pip). `Deploy/SHA256SUMS` donne les empreintes des archives.
+
+**Utilisation, sur chaque machine** (dans l'ordre du tableau) :
+
+```powershell
+# depuis Windows, après git pull
+scp Deploy\compa_ase_depot.tgz admin01@192.168.50.11:~/
+```
+
+```bash
+tar xzf compa_ase_depot.tgz && cd compa_ase_depot
+sha256sum -c SHA256SUMS --quiet                    # contrôle d'intégrité
+cp scripts/compa_ase.env.example scripts/compa_ase.env && nano scripts/compa_ase.env
+sudo ./install.sh
+sudo ./verify.sh
+```
+
+Les mots de passe de `compa_app` et de `grafana_ro` doivent être **identiques** dans les archives qui les partagent. Ensuite : `compa_ase -S ASE1 -D poc_db -s ASE2 -d poc_db -k`.
+
+**Régénérer les archives** (après une modification du code, des requêtes ou des dashboards) : `packaging/build_packages.sh v0.2`, puis commiter `Deploy/`. Les fichiers de `Deploy/` sont générés : ne pas les modifier à la main. Détails et tests : [`docs/deploiement_archives.md`](docs/deploiement_archives.md).
+
+> Statut : écrit le 2026-10-18, **à valider sur des VM neuves**. Testé en local : installation réelle du dépôt, du comparateur et de Grafana (simulé), puis comparaison avec le faux `isql` (30 écarts). Non testé : l'archive `serveurs_ase_test` (pas d'ASE disponible), `apt`/`dnf`, systemd, un Grafana réel.
 
 ## Lancer une comparaison
 
@@ -137,6 +180,7 @@ Le script est rejouable sans perte de données. Le rôle `grafana_ro` (lecture s
 - [`docs/cahier_des_charges_POC.md`](docs/cahier_des_charges_POC.md) : cahier des charges du POC
 - [`docs/installation_vm.md`](docs/installation_vm.md) : création des VM Hyper-V
 - [`docs/premiere_execution.md`](docs/premiere_execution.md) : liste de contrôle avant une première exécution sur un nouvel environnement
+- [`docs/deploiement_archives.md`](docs/deploiement_archives.md) : déploiement par archives (`Deploy/`)
 - [`docs/format_csv.md`](docs/format_csv.md) : format des CSV produits par le script bash et lus par `compare.py`
 
 ## Sécurité

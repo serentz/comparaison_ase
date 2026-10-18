@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2 - en cours (2026-10-18)
+
+### Deploiement par archives
+- Dossier `Deploy/` : 4 archives (`compa_ase_depot`, `compa_ase_comparateur`, `compa_ase_grafana`, `compa_ase_serveurs_ase_test`), chacune avec `install.sh`, `verify.sh`, `LISEZMOI.md` et `SHA256SUMS`. Voir `docs/deploiement_archives.md`.
+- `packaging/build_packages.sh` (archives reproductibles) et `packaging/test_packages.sh` (installation reelle du depot, du comparateur et de Grafana simule, puis comparaison avec le faux `isql` : 30 ecarts).
+- `isql` (SAP Open Client) et les binaires ASE ne sont pas fournis : `verify.sh` du comparateur controle leur presence.
+
 ## 0.1 - 2026-10-16
 
 Premiere version complete, validee de bout en bout sur deux serveurs ASE 16.0 SP03 PL10 reels
