@@ -1,0 +1,13 @@
+[Unit]
+Description=compA_ase : comparaisons planifiees (/etc/compa_ase/planifie.conf)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# User= est remplace a l'installation par RUN_USER (le seul a pouvoir lire /etc/compa_ase/compa_ase.env)
+User=root
+ExecStart=/usr/local/bin/compa_ase-planifie
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=compa_ase-planifie
