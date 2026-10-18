@@ -12,6 +12,35 @@
   Rejouable : -Destroy supprime les VM du POC pour recommencer de zero ; -Only limite a certaines VM
   (ex. -Only ase01,ase02 pour changer seulement l'OS des serveurs ASE).
 
+.PARAMETER UbuntuIso
+  Chemin complet du fichier .iso d'Ubuntu Server (pas un dossier). Obligatoire sauf avec -Destroy.
+.PARAMETER CentosIso
+  Chemin complet du fichier .iso de CentOS Stream 9 (pas un dossier), pour les VM ase01 et ase02.
+.PARAMETER VmRoot
+  Dossier des VM et de leurs disques. Defaut : I:\POC\HyperV.
+.PARAMETER SwitchName
+  Nom du commutateur interne cree pour le POC.
+.PARAMETER Subnet
+  Trois premiers octets du reseau /24 (passerelle .1 = le PC). Defaut : 192.168.50.
+.PARAMETER AdminUser
+  Utilisateur cree sur toutes les VM. Defaut : admin01. Le mot de passe est demande a l'execution (ou -AdminPassword).
+.PARAMETER AdminPassword
+  Mot de passe (SecureString). Sinon il est demande a la saisie.
+.PARAMETER SshPublicKeyFile
+  Cle publique SSH a installer. Defaut : ~\.ssh\id_ed25519.pub ou id_rsa.pub s'ils existent.
+.PARAMETER Keyboard
+  Disposition du clavier. Defaut : fr.
+.PARAMETER InstallTimeoutMin
+  Delai maximal d'installation, en minutes. Defaut : 60.
+.PARAMETER Only
+  Ne traiter que ces VM (noms Hyper-V), ex. -Only <nom>.
+.PARAMETER Destroy
+  Supprime les VM du POC et leurs disques (confirmation OUI demandee). Le commutateur est conserve.
+.PARAMETER NoConsole
+  N'ouvre pas les consoles des VM pendant l'installation.
+.PARAMETER Help
+  Affiche cette aide et quitte (ne demande pas les droits administrateur). Equivalent : Get-Help .\create_vms.ps1 -Full
+
 .EXAMPLE
   .\create_vms.ps1 -UbuntuIso "K:\ShareLinux\Image ISO\ubuntu-24.04.5-live-server-amd64.iso" -CentosIso "K:\ShareLinux\Image ISO\CentOS-Stream-9-20260316.0-x86_64-dvd1.iso"
 
@@ -20,7 +49,6 @@
 
   PowerShell ouvert en administrateur. Fonctionnalite Windows "Hyper-V" requise.
 #>
-#Requires -RunAsAdministrator
 [CmdletBinding()]
 param(
     [string]$UbuntuIso,
@@ -35,10 +63,20 @@ param(
     [int]$InstallTimeoutMin = 60,
     [string[]]$Only,                          # ne traiter que ces VM, ex. -Only ase01,ase02
     [switch]$Destroy,                         # supprime les VM du POC (et rien d'autre)
-    [switch]$NoConsole                        # n'ouvre pas les consoles
+    [switch]$NoConsole,                       # n'ouvre pas les consoles
+    [Alias('h')][switch]$Help                 # affiche l'aide et quitte
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Aide : avant tout controle, pour fonctionner meme sans droits administrateur
+if ($Help) {
+    Get-Help -Name $PSCommandPath -Full
+    return
+}
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw "Ce script doit etre lance dans un PowerShell ouvert en administrateur (aide : .\create_vms.ps1 -Help)."
+}
 $Here = $PSScriptRoot
 
 # Nom, OS, vCPU, RAM (Go), disque (Go), derniere partie de l'adresse IP
