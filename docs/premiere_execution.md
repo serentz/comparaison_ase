@@ -11,9 +11,12 @@ seul le schéma PostgreSQL `compa_ase` reçoit des données.
 - [ ] Locale : `isql` refuse une locale absente de `$SYBASE/locales/locales.dat`
       (`Locale name "fr_FR.UTF-8" doesn't exist`). Le script force `en_US.UTF-8` ; si elle n'existe pas là-bas,
       choisis-en une présente dans `locales.dat` et passe-la : `ASE_LANG=<locale> bash bash/compare_ase.sh ...`.
-- [ ] Jeu de caractères du serveur ASE : le code source (`obj_source`) est dans ce jeu, pas en UTF-8. Sur un serveur
-      français classique (`cp850`), `export COMPA_SOURCE_ENCODING=cp850` ; `iso_1` : `cp1252` ou `latin-1`. Symptôme :
-      « code de ... non décodable en utf-8 (option --source-encoding) ». Vu chez un client RHEL 8 : `cp850`.
+- [ ] Encodage du code source (`obj_source`) : le code est lu tel quel (octets de `syscomments`), pas en UTF-8 forcément.
+      Le jeu de caractères **déclaré** par le serveur n'est pas fiable pour cela : chez un client RHEL 8 / ASE 16.0 SP04 sur AIX,
+      le serveur déclare `iso_1` mais le code a été écrit par des clients en `cp850`. Symptôme : « code de ... non décodable
+      en utf-8 (option --source-encoding) ». Essayer `export COMPA_SOURCE_ENCODING=cp850` (accents corrects), puis `latin-1`
+      (ne peut pas échouer ; accents mal affichés dans les diffs, comparaison juste). `cp1252` échoue si le code contient
+      des octets 0x81, 0x8d, 0x8f, 0x90 ou 0x9d.
 - [ ] Les fichiers viennent d'un dépôt Git ou d'un `scp` sans fins de ligne Windows (`dos2unix` sinon).
 
 ## 2. Droits du login ASE
