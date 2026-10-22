@@ -2,6 +2,9 @@
 
 ## 0.2 - en cours (2026-10-18)
 
+### Compatibilite
+- `compare.py` fonctionne sous Python 3.6 (RHEL 8) : plus de `from __future__ import annotations` ni de `dataclasses`, `subprocess.run` sans `capture_output`. Teste sous 3.8 et 3.13 ; 3.6 verifie par analyse de syntaxe (pas d interpreteur 3.6 disponible pour l execution).
+
 ### Deploiement par archives
 - Dossier `Deploy/` : 4 archives (`compa_ase_depot`, `compa_ase_comparateur`, `compa_ase_grafana`, `compa_ase_serveurs_ase_test`), chacune avec `install.sh`, `verify.sh`, `LISEZMOI.md` et `SHA256SUMS`. Voir `docs/deploiement_archives.md`.
 - `packaging/build_packages.sh` (archives reproductibles) et `packaging/test_packages.sh` (installation reelle du depot, du comparateur et de Grafana simule, puis comparaison avec le faux `isql` : 30 ecarts).
