@@ -6,11 +6,14 @@ seul le schéma PostgreSQL `compa_ase` reçoit des données.
 
 ## 1. Poste d'exécution
 
-- [ ] `isql` (Open Client) fonctionne, `psql` et Python 3.8+ sont installés.
+- [ ] `isql` (Open Client) fonctionne, `psql` et Python 3.6+ sont installés.
 - [ ] Les deux instances sont dans le fichier `interfaces` du poste (`isql -S <instance>` se connecte).
 - [ ] Locale : `isql` refuse une locale absente de `$SYBASE/locales/locales.dat`
       (`Locale name "fr_FR.UTF-8" doesn't exist`). Le script force `en_US.UTF-8` ; si elle n'existe pas là-bas,
       choisis-en une présente dans `locales.dat` et passe-la : `ASE_LANG=<locale> bash bash/compare_ase.sh ...`.
+- [ ] Jeu de caractères du serveur ASE : le code source (`obj_source`) est dans ce jeu, pas en UTF-8. Sur un serveur
+      français classique (`cp850`), `export COMPA_SOURCE_ENCODING=cp850` ; `iso_1` : `cp1252` ou `latin-1`. Symptôme :
+      « code de ... non décodable en utf-8 (option --source-encoding) ». Vu chez un client RHEL 8 : `cp850`.
 - [ ] Les fichiers viennent d'un dépôt Git ou d'un `scp` sans fins de ligne Windows (`dos2unix` sinon).
 
 ## 2. Droits du login ASE
