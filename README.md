@@ -103,6 +103,8 @@ Les mots de passe de `compa_app` et de `grafana_ro` doivent être **identiques**
 
 Prérequis sur le bastion : `psql`, `isql` (client Open Client, instances résolues par le fichier `interfaces`), Python 3.6+ (`COMPA_PYTHON` pour en choisir un autre).
 
+Variables d'environnement facultatives : `COMPA_PYTHON` (interpréteur Python), `COMPA_SOURCE_ENCODING` (encodage du code source ASE de `obj_source`, `utf-8` par défaut : à régler sur le jeu de caractères du serveur, par exemple `cp1252` ou `latin-1` pour `iso_1`, `cp850`), `COMPA_WORKDIR` (dossier de travail des CSV).
+
 1. Déclarer les deux instances ASE (un login par instance) :
 
 ```sql

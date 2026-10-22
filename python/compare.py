@@ -264,8 +264,10 @@ def prepare_obj_source(mod: Module, rows, path: str, ctx: Dict[str, Any]) -> Pre
         raw_bytes = b"".join(parts[c] for c in sorted(parts))
         try:
             text = raw_bytes.decode(encoding)
-        except UnicodeDecodeError:
-            raise CsvError(f"{path} : code de {key[0]} non decodable en {encoding} (option --source-encoding)")
+        except UnicodeDecodeError as exc:
+            raise CsvError(f"{path} : code de {key[0]} non decodable en {encoding} (octet 0x{raw_bytes[exc.start]:02x} a la position {exc.start}). "
+                           "Le code source est dans le jeu de caracteres du serveur ASE : relancer avec --source-encoding "
+                           "(compare_ase.sh : variable COMPA_SOURCE_ENCODING), ex. cp1252, latin-1 ou cp850")
         norm = normalize_source(text)
         out[key] = {
             "object_name": key[0],
