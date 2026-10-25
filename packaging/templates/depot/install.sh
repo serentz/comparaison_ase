@@ -77,6 +77,6 @@ $PSQL_CMD -d "$DEPOT_DB" -v pw="$GRAFANA_RO_PASSWORD" <<'SQL'
 select format('alter role grafana_ro login password %L', :'pw') \gexec
 SQL
 n="$($PSQL_CMD -d "$DEPOT_DB" -At -c "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'compa_ase' AND table_type = 'BASE TABLE'")"
-ok "schema compa_ase en place ($n tables ; 12 attendues)"
+ok "schema compa_ase en place ($n tables ; 13 attendues)"
 
 log "Termine. Etape suivante : declarer les instances ASE a comparer (./scripts/declarer-instance.sh) et verifier : sudo ./verify.sh"

@@ -10,7 +10,7 @@ q() { $PSQL_CMD -d "$DEPOT_DB" -At -c "$1"; }
 eq() { [ "$(q "$1")" = "$2" ]; }
 
 check "base $DEPOT_DB joignable" q "SELECT 1"
-check "12 tables dans le schema compa_ase" eq "SELECT count(*) FROM information_schema.tables WHERE table_schema='compa_ase' AND table_type='BASE TABLE'" 12
+check "13 tables dans le schema compa_ase" eq "SELECT count(*) FROM information_schema.tables WHERE table_schema='compa_ase' AND table_type='BASE TABLE'" 13
 check "version du schema notee" eq "SELECT count(*) FROM compa_ase.schema_version" 1
 check "fonctions get_or_create_refid, start_run, end_run" eq "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='compa_ase' AND proname IN ('get_or_create_refid','start_run','end_run')" 3
 check "vues v_run_selector et v_synthese_run" eq "SELECT count(*) FROM information_schema.views WHERE table_schema='compa_ase' AND table_name IN ('v_run_selector','v_synthese_run')" 2

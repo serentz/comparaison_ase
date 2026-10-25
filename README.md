@@ -125,6 +125,7 @@ bash/compare_ase.sh -S ASE1 -D poc_db -s ASE2 -d poc_db -U <login_pg> -H <hote_p
 | `-s` `-d` | Instance et base 2 |
 | `-U` `-P` | Login et mot de passe PostgreSQL (`-P` est visible dans `ps`, préférer `PGPASSWORD`) |
 | `-H` `-p` `-n` | Hôte, port et base PostgreSQL |
+| `-B` | Mode batch : compare tous les couples actifs de `compa_ase.batch_run` (voir ci-dessous) ; sans `-S -D -s -d` |
 | `-k` | Conserver les CSV du run |
 
 Le script vérifie le schéma PostgreSQL, lit les logins ASE dans `config_compa_ase`, crée ou retrouve le `refid`, ouvre un `run_id`, extrait les 7 modules des deux côtés, puis appelle `python/compare.py`. Le mot de passe ASE est transmis à `isql` par l'entrée standard, jamais en argument.
@@ -141,6 +142,30 @@ Les requêtes d'extraction sont dans `bash/queries/<module>.sql` : ce sont les r
 | 11 | Schéma ou tables PostgreSQL absents : exécuter `sql/postgres/create_schema.sql` |
 | 12 | Instance absente de `config_compa_ase` |
 | 13 | Connexion ou extraction ASE en échec |
+| 14 | Mode batch : au moins une comparaison en échec |
+
+### Mode batch (`-B`)
+
+La table `compa_ase.batch_run` liste les couples à comparer ; `-B` les exécute les uns après les autres (même traitement que le mode unitaire) et y inscrit le résultat :
+
+| Colonne | Contenu |
+|---|---|
+| `ds1`, `db1`, `ds2`, `db2` | instance et base 1, instance et base 2 (clé de la table) |
+| `status_run` | dernier run : `true` = ok, `false` = problème, `NULL` = jamais exécuté |
+| `last_run` | date et heure de début du dernier run |
+| `elapse` | durée du dernier run |
+| `actif` | `false` = couple ignoré par le batch |
+
+```sql
+INSERT INTO compa_ase.batch_run (ds1, db1, ds2, db2)
+VALUES ('DS_GB_PROD', 'gbprod', 'DS_GB_PREP', 'gbprodprep');
+```
+
+```
+bash/compare_ase.sh -B -U <login_pg> -H <hote_pg> -p 5432 -n compa
+```
+
+Un couple en échec n'arrête pas les suivants : son `status_run` passe à `false` et le script se termine par le code 14 après le dernier couple. Les instances de chaque couple doivent être déclarées dans `config_compa_ase`. La table est créée par `create_schema.sql` (rejouable sans perte de données) ; avec l'archive `comparateur`, la commande est `compa_ase -B`.
 
 ## Tester sans instance ASE
 

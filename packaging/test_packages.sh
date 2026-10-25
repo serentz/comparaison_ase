@@ -152,6 +152,11 @@ ENV
     echo "ASE1 poc_db ASEINCONNU poc_db" > "$T/etc/planifie.conf"
     PATH="$T/bin:$FAKEPATH" COMPA_PLANIFIE_CONF="$T/etc/planifie.conf" "$T/bin/compa_ase-planifie" >/dev/null 2>&1; rc=$?
     eq "compa_ase-planifie : instance inconnue -> code retour 1" "$rc" "1"
+    # Mode batch : couples lus dans compa_ase.batch_run, resultat inscrit dans la table
+    $P -c "insert into compa_ase.batch_run (ds1, db1, ds2, db2) values ('ASE1','poc_db','ASE2','poc_db')" >/dev/null
+    PATH="$T/bin:$FAKEPATH" "$T/bin/compa_ase" -B >/dev/null 2>&1; rc=$?
+    eq "compa_ase -B : code retour 0" "$rc" "0"
+    eq "batch_run : status_run true, last_run et elapse renseignes" "$($P -c "select status_run and last_run is not null and elapse is not null from compa_ase.batch_run")" "t"
     # Sans isql : verify.sh doit echouer (isql n'est pas fourni par l'archive)
     PATH="/usr/bin:/bin" "$M/verify.sh" >/dev/null 2>&1 && ko "comparateur : verify.sh sans isql devrait echouer" || ok "comparateur : verify.sh echoue sans isql"
     unset COMPA_ETC_DIR COMPA_BIN_DIR COMPA_UNIT_DIR COMPA_FAKE_PASSWORDS

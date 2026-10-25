@@ -82,6 +82,12 @@ compa_ase -S ASE1 -D poc_db -s ASE2 -d poc_db -k      # -k : conserve les CSV po
 compa_ase -h                                          # aide
 ```
 
+**Mode batch** : `compa_ase -B` compare tous les couples actifs de la table `compa_ase.batch_run` et y inscrit `status_run` (`true` = ok), `last_run` et `elapse`. Code retour 14 si au moins un couple échoue (les suivants sont quand même exécutés). Déclarer les couples, une fois, dans la base de résultats :
+
+```sql
+INSERT INTO compa_ase.batch_run (ds1, db1, ds2, db2) VALUES ('ASE1', 'poc_db', 'ASE2', 'poc_db');
+```
+
 Équivalent sans la commande `compa_ase` : `. /opt/sap/SYBASE.sh; PGPASSWORD=... /opt/compa_ase/bash/compare_ase.sh -S ASE1 -D poc_db -s ASE2 -d poc_db -U compa_app -H 192.168.50.11 -p 5432 -n compa`. Sur les deux instances de test (`archive serveurs_ase_test`), le résultat attendu est de **30 écarts**. Liste de contrôle de première exécution et interprétation des écarts : `docs/premiere_execution.md` du dépôt comparaison_ase.
 
 ## 4. Planification (systemd, ou cron)

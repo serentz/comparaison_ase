@@ -7,6 +7,9 @@
 # 3. extrait 7 modules x 2 cotes vers des CSV (requetes dans bash/queries/*.sql)
 # 4. appelle python/compare.py qui compare et enregistre les ecarts dans PostgreSQL
 #
+# Mode batch (-B) : lit les couples a comparer dans la table compa_ase.batch_run, execute la comparaison de
+# chacun (meme traitement que le mode unitaire) puis y inscrit le resultat (status_run, last_run, elapse).
+#
 # Format des CSV : docs/format_csv.md
 # ==============================================================================
 set -u
@@ -31,6 +34,7 @@ E_PREREQ=10     # outil manquant ou PostgreSQL injoignable
 E_SCHEMA=11     # schema ou tables PostgreSQL absents
 E_CONFIG=12     # instance absente de config_compa_ase
 E_ASE=13        # connexion ou extraction ASE en echec
+E_BATCH=14      # mode batch : au moins une comparaison en echec (voir compa_ase.batch_run)
 
 MODULES=(inst_config db_size db_options obj_tables obj_indexes obj_code obj_source)
 declare -A HEADERS=(
@@ -56,16 +60,20 @@ err() { echo "[-] $*" >&2; }
 
 usage() {
     cat >&2 <<EOF
-Usage: $0 -S <instance1> -D <base1> -s <instance2> -d <base2> -U <login_pg> [options]
+Usage: $0 -S <instance1> -D <base1> -s <instance2> -d <base2> -U <login_pg> [options]     (une comparaison)
+       $0 -B -U <login_pg> [options]                                                       (mode batch)
 
   -S  instance ASE 1            -D  base de donnees 1
   -s  instance ASE 2            -d  base de donnees 2
+  -B  mode batch : compare tous les couples actifs de la table compa_ase.batch_run (-S -D -s -d inutiles)
   -U  login PostgreSQL          -P  mot de passe PostgreSQL (preferer PGPASSWORD ou ~/.pgpass)
   -H  hote PostgreSQL           -p  port PostgreSQL           -n  nom de la base PostgreSQL
   -k  conserver les CSV du run (par defaut : supprimes en fin d'execution)
   -h  cette aide
 
 Les logins ASE sont lus dans la table PostgreSQL compa_ase.config_compa_ase.
+En mode batch, le resultat de chaque couple est inscrit dans compa_ase.batch_run (status_run, last_run, elapse) ;
+code retour $E_BATCH si au moins une comparaison a echoue.
 EOF
     exit $E_USAGE
 }
@@ -76,13 +84,15 @@ EOF
 SRV1="" DB1="" SRV2="" DB2=""
 PG_USER="" PG_PASS="" PG_HOST="" PG_PORT="" PG_DB=""
 KEEP=0
+BATCH=0
 
-while getopts "S:D:s:d:U:P:H:p:n:kh" opt; do
+while getopts "S:D:s:d:BU:P:H:p:n:kh" opt; do
     case $opt in
         S) SRV1=$OPTARG ;;
         D) DB1=$OPTARG ;;
         s) SRV2=$OPTARG ;;
         d) DB2=$OPTARG ;;
+        B) BATCH=1 ;;
         U) PG_USER=$OPTARG ;;
         P) PG_PASS=$OPTARG ;;
         H) PG_HOST=$OPTARG ;;
@@ -93,18 +103,33 @@ while getopts "S:D:s:d:U:P:H:p:n:kh" opt; do
     esac
 done
 
-if [ -z "$SRV1" ] || [ -z "$DB1" ] || [ -z "$SRV2" ] || [ -z "$DB2" ] || [ -z "$PG_USER" ]; then
-    err "Les parametres -S, -D, -s, -d et -U sont obligatoires."
+if [ "$BATCH" = 1 ]; then
+    if [ -n "$SRV1$DB1$SRV2$DB2" ]; then
+        err "-B (batch) ne se combine pas avec -S, -D, -s, -d : les couples viennent de la table compa_ase.batch_run."
+        usage
+    fi
+    if [ -z "$PG_USER" ]; then
+        err "Le parametre -U est obligatoire."
+        usage
+    fi
+elif [ -z "$SRV1" ] || [ -z "$DB1" ] || [ -z "$SRV2" ] || [ -z "$DB2" ] || [ -z "$PG_USER" ]; then
+    err "Les parametres -S, -D, -s, -d et -U sont obligatoires (ou -B pour le mode batch)."
     usage
 fi
 
 # Les noms sont reinjectes dans des requetes et des chemins : liste blanche de caracteres
-for v in "$SRV1" "$DB1" "$SRV2" "$DB2"; do
-    if ! [[ $v =~ ^[A-Za-z0-9_.-]+$ ]]; then
-        err "Valeur invalide '$v' : seuls les lettres, chiffres, '_', '.' et '-' sont acceptes."
-        exit $E_USAGE
-    fi
-done
+valid_names() {   # $@ = noms a controler
+    local v
+    for v in "$@"; do
+        if ! [[ $v =~ ^[A-Za-z0-9_.-]+$ ]]; then
+            err "Valeur invalide '$v' : seuls les lettres, chiffres, '_', '.' et '-' sont acceptes."
+            return 1
+        fi
+    done
+}
+if [ "$BATCH" = 0 ]; then
+    valid_names "$SRV1" "$DB1" "$SRV2" "$DB2" || exit $E_USAGE
+fi
 if [ -n "$PG_PORT" ] && ! [[ $PG_PORT =~ ^[0-9]+$ ]]; then
     err "Le port PostgreSQL doit etre numerique."
     exit $E_USAGE
@@ -123,7 +148,7 @@ PG_ARGS=(-X -v ON_ERROR_STOP=1 -U "$PG_USER")
 pg() { psql "${PG_ARGS[@]}" "$@"; }
 
 # ------------------------------------------------------------------------------
-# Nettoyage et suivi du run
+# Nettoyage et suivi du run (etat de la comparaison en cours ; remis a zero par unit_cleanup)
 # ------------------------------------------------------------------------------
 WORK=""
 RUN_ID=""
@@ -139,10 +164,9 @@ SQL
     RUN_OPEN=0
 }
 
-cleanup() {
-    local rc=$?
+unit_cleanup() {   # $1 = code de sortie (pour le message d'un run interrompu)
     if [ "$RUN_OPEN" = 1 ]; then
-        fail_run "script interrompu (code $rc)"
+        fail_run "script interrompu (code $1)"
     fi
     if [ -n "$WORK" ] && [ -d "$WORK" ]; then
         if [ "$KEEP" = 1 ]; then
@@ -151,48 +175,61 @@ cleanup() {
             rm -rf "$WORK"
         fi
     fi
+    WORK="" RUN_ID="" REFID="" RUN_OPEN=0
 }
+
+cleanup() { unit_cleanup $?; }
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
 # ------------------------------------------------------------------------------
-# Pre-controles
+# Pre-controles (une seule fois, en mode unitaire comme en mode batch)
 # ------------------------------------------------------------------------------
-for cmd in psql isql "$PY"; do
-    if ! command -v "$cmd" >/dev/null 2>&1; then
-        err "Commande introuvable : $cmd"
-        exit $E_PREREQ
+preflight() {
+    local cmd mod nb_tables
+    for cmd in psql isql "$PY"; do
+        if ! command -v "$cmd" >/dev/null 2>&1; then
+            err "Commande introuvable : $cmd"
+            return $E_PREREQ
+        fi
+    done
+    if [ ! -f "$COMPARE_PY" ]; then
+        err "compare.py introuvable : $COMPARE_PY"
+        return $E_PREREQ
     fi
-done
-if [ ! -f "$COMPARE_PY" ]; then
-    err "compare.py introuvable : $COMPARE_PY"
-    exit $E_PREREQ
-fi
-for mod in "${MODULES[@]}"; do
-    if [ ! -f "$QUERIES_DIR/$mod.sql" ]; then
-        err "Requete manquante : $QUERIES_DIR/$mod.sql"
-        exit $E_PREREQ
-    fi
-done
+    for mod in "${MODULES[@]}"; do
+        if [ ! -f "$QUERIES_DIR/$mod.sql" ]; then
+            err "Requete manquante : $QUERIES_DIR/$mod.sql"
+            return $E_PREREQ
+        fi
+    done
 
-nb_tables=$(pg -At -c "select count(*) from information_schema.tables where table_schema = 'compa_ase' and table_name in ($REQUIRED_TABLES)" 2>&1)
-if [ $? -ne 0 ]; then
-    err "Connexion PostgreSQL impossible : $nb_tables"
-    exit $E_PREREQ
-fi
-if [ "$nb_tables" != "$REQUIRED_TABLES_COUNT" ]; then
-    err "Le schema compa_ase est absent ou incomplet ($nb_tables/$REQUIRED_TABLES_COUNT tables)."
-    err "Executer d'abord le script de creation : psql -f sql/postgres/create_schema.sql"
-    exit $E_SCHEMA
-fi
-log "PostgreSQL : schema compa_ase present."
+    nb_tables=$(pg -At -c "select count(*) from information_schema.tables where table_schema = 'compa_ase' and table_name in ($REQUIRED_TABLES)" 2>&1)
+    if [ $? -ne 0 ]; then
+        err "Connexion PostgreSQL impossible : $nb_tables"
+        return $E_PREREQ
+    fi
+    if [ "$nb_tables" != "$REQUIRED_TABLES_COUNT" ]; then
+        err "Le schema compa_ase est absent ou incomplet ($nb_tables/$REQUIRED_TABLES_COUNT tables)."
+        err "Executer d'abord le script de creation : psql -f sql/postgres/create_schema.sql"
+        return $E_SCHEMA
+    fi
+    if [ "$BATCH" = 1 ]; then
+        nb_tables=$(pg -At -c "select count(*) from information_schema.tables where table_schema = 'compa_ase' and table_name = 'batch_run'" 2>&1)
+        if [ "$nb_tables" != "1" ]; then
+            err "La table compa_ase.batch_run est absente : rejouer sql/postgres/create_schema.sql (sans perte de donnees)."
+            return $E_SCHEMA
+        fi
+    fi
+    log "PostgreSQL : schema compa_ase present."
+}
 
 # ------------------------------------------------------------------------------
 # Logins ASE (table config_compa_ase)
 # ------------------------------------------------------------------------------
 declare -A ASE_LOGIN ASE_PASS
 
-fetch_creds() {   # $1 = 1|2 (cote), $2 = instance
+fetch_creds() {   # $1 = 1|2 (cote), $2 = instance ; retourne un code E_*
     local row
     row=$(pg -At -F $'\t' -v inst="$2" 2>&1 <<'SQL'
 select login, password from compa_ase.config_compa_ase where instance = :'inst' and actif;
@@ -200,17 +237,14 @@ SQL
     )
     if [ $? -ne 0 ]; then
         err "Lecture de config_compa_ase impossible : $row"
-        exit $E_PREREQ
+        return $E_PREREQ
     fi
     if [ -z "$row" ]; then
         err "Instance '$2' absente (ou inactive) de compa_ase.config_compa_ase : l'y declarer avant de relancer."
-        exit $E_CONFIG
+        return $E_CONFIG
     fi
     IFS=$'\t' read -r "ASE_LOGIN[$1]" "ASE_PASS[$1]" <<<"$row"
 }
-
-fetch_creds 1 "$SRV1"
-fetch_creds 2 "$SRV2"
 
 # ------------------------------------------------------------------------------
 # Acces ASE via isql
@@ -250,12 +284,12 @@ csv_body() {
         -e 's/^\|(.*)\|$/\1/'
 }
 
-check_ase() {   # $1 = cote, $2 = instance
+check_ase() {   # $1 = cote, $2 = instance ; retourne E_ASE si la connexion echoue
     log "Connexion a l'instance $2..."
     if ! run_isql "$1" "$2" master "select @@servername"; then
         err "Connexion a l'instance ASE '$2' impossible :"
         show_isql_error
-        exit $E_ASE
+        return $E_ASE
     fi
 }
 
@@ -275,54 +309,125 @@ extract_side() {   # $1 = cote (1|2), $2 = instance, $3 = base
     done
 }
 
-check_ase 1 "$SRV1"
-check_ase 2 "$SRV2"
+# ------------------------------------------------------------------------------
+# Une comparaison (traitement unitaire) : run_unit INSTANCE1 BASE1 INSTANCE2 BASE2
+#   Retourne le code de sortie du traitement (0 = comparaison terminee). Ne quitte jamais le script :
+#   le mode batch enchaine les couples. Le run et le dossier de travail sont nettoyes a la fin.
+# ------------------------------------------------------------------------------
+run_unit_body() {
+    local s1=$1 d1=$2 s2=$3 d2=$4 rc
+    ASE_LOGIN=() ASE_PASS=()
 
-# ------------------------------------------------------------------------------
-# Reference (refid) et run
-# ------------------------------------------------------------------------------
-REFID=$(pg -At -v i1="$SRV1" -v b1="$DB1" -v i2="$SRV2" -v b2="$DB2" 2>&1 <<'SQL'
+    fetch_creds 1 "$s1" || return $?
+    fetch_creds 2 "$s2" || return $?
+    check_ase 1 "$s1" || return $?
+    check_ase 2 "$s2" || return $?
+
+    # Reference (refid) et run
+    REFID=$(pg -At -v i1="$s1" -v b1="$d1" -v i2="$s2" -v b2="$d2" 2>&1 <<'SQL'
 select compa_ase.get_or_create_refid(:'i1', :'b1', :'i2', :'b2');
 SQL
-)
-if ! [[ $REFID =~ ^[0-9]+$ ]]; then
-    err "Creation de la reference impossible : $REFID"
-    exit $E_PREREQ
-fi
-RUN_ID=$(pg -At -v refid="$REFID" 2>&1 <<'SQL'
+    )
+    if ! [[ $REFID =~ ^[0-9]+$ ]]; then
+        err "Creation de la reference impossible : $REFID"
+        return $E_PREREQ
+    fi
+    RUN_ID=$(pg -At -v refid="$REFID" 2>&1 <<'SQL'
 select compa_ase.start_run(:refid);
 SQL
-)
-if ! [[ $RUN_ID =~ ^[0-9]+$ ]]; then
-    err "Ouverture du run impossible : $RUN_ID"
-    RUN_ID=""
-    exit $E_PREREQ
+    )
+    if ! [[ $RUN_ID =~ ^[0-9]+$ ]]; then
+        err "Ouverture du run impossible : $RUN_ID"
+        RUN_ID=""
+        return $E_PREREQ
+    fi
+    RUN_OPEN=1
+    log "Reference refid=$REFID : $s1.$d1 vs $s2.$d2 (run_id=$RUN_ID)"
+
+    # Extraction (7 modules x 2 cotes)
+    WORK=$(mktemp -d "$WORK_ROOT/compa_ase_run${RUN_ID}_XXXXXX") || { fail_run "dossier de travail impossible"; return $E_PREREQ; }
+    chmod 700 "$WORK"
+    if ! extract_side 1 "$s1" "$d1" || ! extract_side 2 "$s2" "$d2"; then
+        fail_run "echec de l'extraction ASE"
+        return $E_ASE
+    fi
+
+    # Comparaison (compare.py enregistre les ecarts et cloture le run)
+    # Encodage reel du code source ASE (obj_source), pas forcement UTF-8 ni le jeu declare par le serveur (ex. cp850 sur serveur iso_1)
+    local -a args=(--source-encoding "${COMPA_SOURCE_ENCODING:-utf-8}" --csv-dir "$WORK" --run-id "$RUN_ID" --refid "$REFID" -U "$PG_USER")
+    [ -n "$PG_HOST" ] && args+=(-H "$PG_HOST")
+    [ -n "$PG_PORT" ] && args+=(-p "$PG_PORT")
+    [ -n "$PG_DB" ] && args+=(-n "$PG_DB")
+
+    log "Comparaison des extractions..."
+    "$PY" "$COMPARE_PY" "${args[@]}"
+    rc=$?
+    RUN_OPEN=0      # compare.py a cloture le run (TERMINE ou ERREUR)
+    return $rc
+}
+
+run_unit() {
+    local rc
+    run_unit_body "$@"
+    rc=$?
+    unit_cleanup $rc
+    return $rc
+}
+
+# ------------------------------------------------------------------------------
+# Mode batch : une comparaison par ligne active de compa_ase.batch_run
+# ------------------------------------------------------------------------------
+record_batch_result() {   # $1..$4 = couple, $5 = code retour, $6 = debut (epoch), $7 = duree (s)
+    local ok=f
+    [ "$5" -eq 0 ] && ok=t
+    pg -q -At -o /dev/null -v b1="$1" -v b2="$2" -v b3="$3" -v b4="$4" -v ok="$ok" -v t0="$6" -v el="$7" <<'SQL' \
+        || warn "Mise a jour de compa_ase.batch_run impossible pour $1/$2 contre $3/$4."
+update compa_ase.batch_run
+   set status_run = :'ok'::boolean,
+       last_run   = to_timestamp(:'t0'::bigint),
+       elapse     = make_interval(secs => :'el'::int)
+ where ds1 = :'b1' and db1 = :'b2' and ds2 = :'b3' and db2 = :'b4';
+SQL
+}
+
+run_batch() {
+    local -a rows
+    local row ds1 db1 ds2 db2 t0 rc n=0 nok=0 nko=0
+    # Lecture complete avant la boucle : psql et isql lisent l'entree standard, une boucle "while read" les perturberait
+    mapfile -t rows < <(pg -At -F $'\t' -c "select ds1, db1, ds2, db2 from compa_ase.batch_run where actif order by ds1, db1, ds2, db2")
+    if [ "${#rows[@]}" -eq 0 ]; then
+        warn "Aucun couple actif dans compa_ase.batch_run : rien a comparer."
+        return 0
+    fi
+    log "Batch : ${#rows[@]} comparaison(s) a executer."
+    for row in "${rows[@]}"; do
+        IFS=$'\t' read -r ds1 db1 ds2 db2 <<<"$row"
+        n=$((n + 1))
+        log "Batch $n/${#rows[@]} : $ds1.$db1 vs $ds2.$db2"
+        t0=$(date +%s)
+        if valid_names "$ds1" "$db1" "$ds2" "$db2"; then
+            run_unit "$ds1" "$db1" "$ds2" "$db2"
+            rc=$?
+        else
+            rc=$E_USAGE
+        fi
+        record_batch_result "$ds1" "$db1" "$ds2" "$db2" "$rc" "$t0" "$(( $(date +%s) - t0 ))"
+        if [ "$rc" -eq 0 ]; then
+            nok=$((nok + 1))
+        else
+            nko=$((nko + 1))
+            warn "Batch : $ds1.$db1 vs $ds2.$db2 en echec (code $rc)."
+        fi
+    done
+    log "Batch termine : $nok comparaison(s) reussie(s), $nko en echec."
+    [ "$nko" -eq 0 ] || return $E_BATCH
+}
+
+preflight || exit $?
+
+if [ "$BATCH" = 1 ]; then
+    run_batch
+    exit $?
 fi
-RUN_OPEN=1
-log "Reference refid=$REFID : $SRV1.$DB1 vs $SRV2.$DB2 (run_id=$RUN_ID)"
-
-# ------------------------------------------------------------------------------
-# Extraction (7 modules x 2 cotes)
-# ------------------------------------------------------------------------------
-WORK=$(mktemp -d "$WORK_ROOT/compa_ase_run${RUN_ID}_XXXXXX") || { fail_run "dossier de travail impossible"; exit $E_PREREQ; }
-chmod 700 "$WORK"
-
-if ! extract_side 1 "$SRV1" "$DB1" || ! extract_side 2 "$SRV2" "$DB2"; then
-    fail_run "echec de l'extraction ASE"
-    exit $E_ASE
-fi
-
-# ------------------------------------------------------------------------------
-# Comparaison (compare.py enregistre les ecarts et cloture le run)
-# ------------------------------------------------------------------------------
-# Encodage reel du code source ASE (obj_source), pas forcement UTF-8 ni le jeu declare par le serveur (ex. cp850 sur serveur iso_1)
-COMPARE_ARGS=(--source-encoding "${COMPA_SOURCE_ENCODING:-utf-8}" --csv-dir "$WORK" --run-id "$RUN_ID" --refid "$REFID" -U "$PG_USER")
-[ -n "$PG_HOST" ] && COMPARE_ARGS+=(-H "$PG_HOST")
-[ -n "$PG_PORT" ] && COMPARE_ARGS+=(-p "$PG_PORT")
-[ -n "$PG_DB" ] && COMPARE_ARGS+=(-n "$PG_DB")
-
-log "Comparaison des extractions..."
-"$PY" "$COMPARE_PY" "${COMPARE_ARGS[@]}"
-rc=$?
-RUN_OPEN=0      # compare.py a cloture le run (TERMINE ou ERREUR)
-exit $rc
+run_unit "$SRV1" "$DB1" "$SRV2" "$DB2"
+exit $?
