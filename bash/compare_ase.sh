@@ -315,7 +315,8 @@ fi
 # ------------------------------------------------------------------------------
 # Comparaison (compare.py enregistre les ecarts et cloture le run)
 # ------------------------------------------------------------------------------
-COMPARE_ARGS=(--csv-dir "$WORK" --run-id "$RUN_ID" --refid "$REFID" -U "$PG_USER")
+# Encodage reel du code source ASE (obj_source), pas forcement UTF-8 ni le jeu declare par le serveur (ex. cp850 sur serveur iso_1)
+COMPARE_ARGS=(--source-encoding "${COMPA_SOURCE_ENCODING:-utf-8}" --csv-dir "$WORK" --run-id "$RUN_ID" --refid "$REFID" -U "$PG_USER")
 [ -n "$PG_HOST" ] && COMPARE_ARGS+=(-H "$PG_HOST")
 [ -n "$PG_PORT" ] && COMPARE_ARGS+=(-p "$PG_PORT")
 [ -n "$PG_DB" ] && COMPARE_ARGS+=(-n "$PG_DB")

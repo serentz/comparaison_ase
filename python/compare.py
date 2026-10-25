@@ -13,8 +13,6 @@ Le mot de passe PostgreSQL est transmis a psql par la variable PGPASSWORD (jamai
 
 Codes retour : 0 = comparaison terminee, 2 = CSV manquant ou invalide, 3 = erreur PostgreSQL.
 """
-from __future__ import annotations
-
 import argparse
 import csv
 import datetime as dt
@@ -25,7 +23,6 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -124,17 +121,30 @@ Record = Dict[str, Any]
 Prepared = Dict[Tuple[Any, ...], Record]
 
 
-@dataclass(frozen=True)
 class Module:
-    name: str
-    columns: List[str]                        # colonnes du CSV
-    fields: List[Tuple[str, str, str]]        # (colonne CSV, champ, type) pour la lecture generique
-    key: List[str]                            # champs formant la cle de jointure
-    compare: List[str]                        # champs dont la difference constitue un ecart
-    pg_fields: List[str]                       # champs ecrits en r1_<champ> / r2_<champ>
-    table: str
-    prepare: Optional[Callable[..., Prepared]] = None   # lecture specifique (remplace la lecture generique)
-    derive: Optional[Callable[[Record], None]] = None   # champs derives, apres lecture generique
+    """Description d'un module (classe ordinaire : pas de dataclasses, absentes de Python 3.6)."""
+
+    def __init__(
+        self,
+        name: str,
+        columns: List[str],                       # colonnes du CSV
+        fields: List[Tuple[str, str, str]],       # (colonne CSV, champ, type) pour la lecture generique
+        key: List[str],                           # champs formant la cle de jointure
+        compare: List[str],                       # champs dont la difference constitue un ecart
+        pg_fields: List[str],                      # champs ecrits en r1_<champ> / r2_<champ>
+        table: str,
+        prepare: Optional[Callable[..., Prepared]] = None,   # lecture specifique (remplace la lecture generique)
+        derive: Optional[Callable[[Record], None]] = None,   # champs derives, apres lecture generique
+    ) -> None:
+        self.name = name
+        self.columns = columns
+        self.fields = fields
+        self.key = key
+        self.compare = compare
+        self.pg_fields = pg_fields
+        self.table = table
+        self.prepare = prepare
+        self.derive = derive
 
 
 def segment_of(segmap: int) -> str:
@@ -254,8 +264,10 @@ def prepare_obj_source(mod: Module, rows, path: str, ctx: Dict[str, Any]) -> Pre
         raw_bytes = b"".join(parts[c] for c in sorted(parts))
         try:
             text = raw_bytes.decode(encoding)
-        except UnicodeDecodeError:
-            raise CsvError(f"{path} : code de {key[0]} non decodable en {encoding} (option --source-encoding)")
+        except UnicodeDecodeError as exc:
+            raise CsvError(f"{path} : code de {key[0]} non decodable en {encoding} (octet 0x{raw_bytes[exc.start]:02x} a la position {exc.start}). "
+                           "Le code source est dans le jeu de caracteres du serveur ASE : relancer avec --source-encoding "
+                           "(compare_ase.sh : variable COMPA_SOURCE_ENCODING), ex. cp850, latin-1 ou cp1252")
         norm = normalize_source(text)
         out[key] = {
             "object_name": key[0],
@@ -345,13 +357,13 @@ def like_to_regex(pattern: str) -> "re.Pattern[str]":
     return re.compile("^" + "".join(out) + "$", re.S)
 
 
-@dataclass(frozen=True)
 class Rule:
-    module: str
-    pattern: str
-    colonne: str     # '*' = toute la ligne, sinon nom d'un champ compare
-    action: str      # IGNORE ou ATTENDU
-    regex: Any = field(default=None, compare=False)
+    def __init__(self, module: str, pattern: str, colonne: str, action: str, regex: Any = None) -> None:
+        self.module = module
+        self.pattern = pattern
+        self.colonne = colonne     # '*' = toute la ligne, sinon nom d'un champ compare
+        self.action = action       # IGNORE ou ATTENDU
+        self.regex = regex
 
     @staticmethod
     def make(module: str, pattern: str, colonne: str, action: str) -> "Rule":
@@ -363,21 +375,29 @@ DEFAULT_RULES = [
     Rule.make("obj_indexes", "%", "statstamp", "IGNORE"),
     Rule.make("inst_config", "executable codesize + overhead", "value_in_use", "IGNORE"),
     Rule.make("inst_config", "total logical memory", "value_in_use", "IGNORE"),
+    Rule.make("inst_config", "current audit table", "*", "IGNORE"),
+    Rule.make("inst_config", "number of %", "*", "ATTENDU"),
+    Rule.make("inst_config", "%memory%", "*", "ATTENDU"),
+    Rule.make("inst_config", "%cache size%", "*", "ATTENDU"),
+    Rule.make("inst_config", "%pipe max messages", "*", "ATTENDU"),
+    Rule.make("inst_config", "permission cache entries", "*", "ATTENDU"),
+    Rule.make("inst_config", "stack size", "*", "ATTENDU"),
 ]
 
 
 # ----------------------------------------------------------------------------
 # Comparaison
 # ----------------------------------------------------------------------------
-@dataclass
 class Diff:
-    module: Module
-    key: Tuple[Any, ...]
-    type_diff: str                       # ONLY_R1, ONLY_R2, DIFF
-    attendu: bool
-    rec1: Optional[Record]
-    rec2: Optional[Record]
-    cols: List[str] = field(default_factory=list)
+    def __init__(self, module: Module, key: Tuple[Any, ...], type_diff: str, attendu: bool,
+                 rec1: Optional[Record], rec2: Optional[Record], cols: Optional[List[str]] = None) -> None:
+        self.module = module
+        self.key = key
+        self.type_diff = type_diff           # ONLY_R1, ONLY_R2, DIFF
+        self.attendu = attendu
+        self.rec1 = rec1
+        self.rec2 = rec2
+        self.cols = cols if cols is not None else []
 
     @property
     def key_text(self) -> str:
@@ -453,7 +473,7 @@ class Pg:
             self.env["PGPASSWORD"] = password
 
     def _run(self, extra: List[str]) -> str:
-        proc = subprocess.run(self.base + extra, env=self.env, capture_output=True, text=True)
+        proc = subprocess.run(self.base + extra, env=self.env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if proc.returncode != 0:
             msg = (proc.stderr or proc.stdout).strip().splitlines()
             raise PgError(" / ".join(msg[:3]) or f"psql a retourne le code {proc.returncode}")

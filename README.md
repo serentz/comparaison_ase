@@ -22,7 +22,7 @@ avec le détail ligne à ligne du code source.
 ```
 
 - **Extraction** (`bash/`) : `isql` exécute les requêtes de `bash/queries/` sur chaque instance. Le mot de passe ASE est transmis par l'entrée standard, jamais en argument.
-- **Comparaison** (`python/compare.py`) : bibliothèque standard Python 3.8+ uniquement, enregistrement via `psql`. Écarts typés `ONLY_R1`, `ONLY_R2` ou `DIFF`, avec règles d'exclusion pour le bruit connu.
+- **Comparaison** (`python/compare.py`) : bibliothèque standard Python 3.6+ uniquement (RHEL 8 : le `python3` par défaut suffit), enregistrement via `psql`. Écarts typés `ONLY_R1`, `ONLY_R2` ou `DIFF`, avec règles d'exclusion pour le bruit connu.
 - **Stockage** (`sql/postgres/`) : schéma `compa_ase`, un historique de tous les runs.
 - **Affichage** (`grafana/`) : 8 dashboards générés et provisionnés, navigation entre modules.
 
@@ -33,7 +33,7 @@ avec le détail ligne à ligne du code source.
 | SAP ASE | 16.0 (testé : SP03 PL10) |
 | Client `isql` (Open Client) | Sur la machine qui lance le script |
 | PostgreSQL | Testé avec la version 16 |
-| Python | 3.8 ou plus, sans dépendance pip |
+| Python | 3.6 ou plus (le `python3` de RHEL 8 convient), sans dépendance pip |
 | `psql` | Client PostgreSQL |
 | Grafana OSS | Version récente (testé en octobre 2026) |
 
@@ -101,7 +101,9 @@ Les mots de passe de `compa_app` et de `grafana_ro` doivent être **identiques**
 
 ## Lancer une comparaison
 
-Prérequis sur le bastion : `psql`, `isql` (client Open Client, instances résolues par le fichier `interfaces`), Python 3.8+.
+Prérequis sur le bastion : `psql`, `isql` (client Open Client, instances résolues par le fichier `interfaces`), Python 3.6+ (`COMPA_PYTHON` pour en choisir un autre).
+
+Variables d'environnement facultatives : `COMPA_PYTHON` (interpréteur Python), `COMPA_SOURCE_ENCODING` (encodage du code source ASE de `obj_source`, `utf-8` par défaut : à régler selon l'encodage réel du code, souvent `cp850` en France même si le serveur déclare `iso_1` ; `latin-1` accepte tout ; voir `docs/premiere_execution.md`), `COMPA_WORKDIR` (dossier de travail des CSV).
 
 1. Déclarer les deux instances ASE (un login par instance) :
 

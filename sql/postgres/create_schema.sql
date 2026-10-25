@@ -104,6 +104,19 @@ VALUES ('inst_config', 'executable codesize + overhead', 'value_in_use', 'IGNORE
         'Memoire logique calculee par ASE : varie de quelques unites entre deux instances')
 ON CONFLICT (module, cle_pattern, colonne) DO NOTHING;
 
+-- Dimensionnement : different par conception entre deux environnements (prod / preprod). Les ecarts restent
+-- enregistres mais sont marques "attendus" (attendu = true). Retrouve sur un client reel : 38 ecarts inst_config.
+-- A desactiver (actif = false) ou a supprimer si les deux instances doivent etre dimensionnees a l'identique.
+INSERT INTO compa_ase.exclusion_rules (module, cle_pattern, colonne, action, motif)
+VALUES ('inst_config', 'current audit table',      '*', 'IGNORE',  'Table d''audit courante : change automatiquement a chaque rotation'),
+       ('inst_config', 'number of %',              '*', 'ATTENDU', 'Dimensionnement (verrous, connexions, objets, devices, moteurs...) different selon l''environnement'),
+       ('inst_config', '%memory%',                 '*', 'ATTENDU', 'Dimensionnement memoire different selon l''environnement'),
+       ('inst_config', '%cache size%',             '*', 'ATTENDU', 'Dimensionnement des caches different selon l''environnement'),
+       ('inst_config', '%pipe max messages',       '*', 'ATTENDU', 'Taille des pipes de monitoring'),
+       ('inst_config', 'permission cache entries', '*', 'ATTENDU', 'Dimensionnement different selon l''environnement'),
+       ('inst_config', 'stack size',               '*', 'ATTENDU', 'Dimensionnement different selon l''environnement')
+ON CONFLICT (module, cle_pattern, colonne) DO NOTHING;
+
 -- ----------------------------------------------------------------------------
 -- 3. Tables de differences : une par module
 --    Colonnes communes : diff_id, run_id, refid, ts_exec, type_diff, attendu
