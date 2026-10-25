@@ -7,6 +7,8 @@
 
 - `compare_ase.sh` : variable `COMPA_SOURCE_ENCODING` transmise a `compare.py --source-encoding` (le code source ASE n'est pas en UTF-8 : chez un client, serveur declare iso_1 mais code en cp850). Message d'erreur precisant l'octet fautif et la marche a suivre.
 
+- Regles d'exclusion par defaut pour `inst_config` (schema et mode `--dry-run`) : `current audit table` ignore ; dimensionnement (`number of %`, `%memory%`, `%cache size%`, `%pipe max messages`, `permission cache entries`, `stack size`) marque `ATTENDU`. Les ecarts restent enregistres. Releve sur un client reel (38 ecarts prod/preprod). A desactiver via `actif = false` dans `exclusion_rules`.
+
 ### Deploiement par archives
 - Dossier `Deploy/` : 4 archives (`compa_ase_depot`, `compa_ase_comparateur`, `compa_ase_grafana`, `compa_ase_serveurs_ase_test`), chacune avec `install.sh`, `verify.sh`, `LISEZMOI.md` et `SHA256SUMS`. Voir `docs/deploiement_archives.md`.
 - `packaging/build_packages.sh` (archives reproductibles) et `packaging/test_packages.sh` (installation reelle du depot, du comparateur et de Grafana simule, puis comparaison avec le faux `isql` : 30 ecarts).

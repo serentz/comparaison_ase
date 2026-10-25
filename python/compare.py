@@ -375,6 +375,13 @@ DEFAULT_RULES = [
     Rule.make("obj_indexes", "%", "statstamp", "IGNORE"),
     Rule.make("inst_config", "executable codesize + overhead", "value_in_use", "IGNORE"),
     Rule.make("inst_config", "total logical memory", "value_in_use", "IGNORE"),
+    Rule.make("inst_config", "current audit table", "*", "IGNORE"),
+    Rule.make("inst_config", "number of %", "*", "ATTENDU"),
+    Rule.make("inst_config", "%memory%", "*", "ATTENDU"),
+    Rule.make("inst_config", "%cache size%", "*", "ATTENDU"),
+    Rule.make("inst_config", "%pipe max messages", "*", "ATTENDU"),
+    Rule.make("inst_config", "permission cache entries", "*", "ATTENDU"),
+    Rule.make("inst_config", "stack size", "*", "ATTENDU"),
 ]
 
 
