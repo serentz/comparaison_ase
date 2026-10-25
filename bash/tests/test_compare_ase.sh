@@ -110,6 +110,48 @@ else
     echo "  skip - createdb impossible"
 fi
 
+echo "== 6. Mode batch (-B) =="
+bcmd() { "$SCRIPT" -B -U "$PGUSER" -n "$COMPA_TEST_DB" ${PGHOST:+-H "$PGHOST"} ${PGPORT:+-p "$PGPORT"} "$@"; }
+P -q -c "delete from compa_ase.batch_run"
+"$SCRIPT" -B -S ASE1 -U u >"$LOG" 2>&1; check "-B avec -S -> 1" "$?" "1"
+"$SCRIPT" -B >"$LOG" 2>&1; check "-B sans -U -> 1" "$?" "1"
+
+bcmd >"$LOG" 2>&1; rc=$?
+check "batch vide -> 0" "$rc" "0"
+grep -q "Aucun couple actif" "$LOG" && ok "message : aucun couple" || ko "message : aucun couple"
+
+P -q -c "insert into compa_ase.batch_run (ds1, db1, ds2, db2) values ('ASE1','poc_db','ASE2','poc_db'), ('ASE2','poc_db','ASE1','poc_db'), ('ASE1','poc_db','ASE_INCONNU','poc_db'), ('ASE1','autre','ASE2','autre')"
+P -q -c "update compa_ase.batch_run set actif = false where db1 = 'autre'"
+check "avant le batch : status_run NULL" "$(P -c "select count(*) from compa_ase.batch_run where status_run is null and last_run is null and elapse is null")" "4"
+runs_before=$(P -c "select count(*) from compa_ase.run")
+bcmd >"$LOG" 2>&1; rc=$?
+check "batch avec un couple en echec -> 14" "$rc" "14"
+grep -q "2 comparaison(s) reussie(s), 1 en echec" "$LOG" && ok "bilan du batch" || ko "bilan du batch"
+check "2 runs crees (les couples actifs executes, l'inactif ignore)" "$(( $(P -c "select count(*) from compa_ase.run") - runs_before ))" "2"
+check "couple OK : status_run true" "$(P -c "select status_run from compa_ase.batch_run where ds1='ASE1' and ds2='ASE2' and db1='poc_db'")" "t"
+check "couple en echec (instance inconnue) : status_run false" "$(P -c "select status_run from compa_ase.batch_run where ds2='ASE_INCONNU'")" "f"
+check "couple inactif : jamais execute" "$(P -c "select status_run is null and last_run is null from compa_ase.batch_run where db1='autre'")" "t"
+check "last_run et elapse renseignes pour les 3 couples actifs" "$(P -c "select count(*) from compa_ase.batch_run where actif and last_run is not null and elapse is not null")" "3"
+check "last_run recent" "$(P -c "select count(*) from compa_ase.batch_run where actif and last_run > now() - interval '5 minutes'")" "3"
+check "run d'un couple OK : 30 ecarts" "$(P -c "select message from compa_ase.run r join compa_ase.ref_execution f using (refid) where f.instance1='ASE1' and f.instance2='ASE2' and f.base1='poc_db' order by run_id desc limit 1")" "30 ecart(s)"
+check "nettoyage : aucun dossier de travail restant" "$(ls -d "${TMPDIR:-/tmp}"/compa_ase_run*_* 2>/dev/null | wc -l)" "0"
+
+# Un couple en echec ne bloque pas les suivants, et un couple repare repasse a true
+P -q -c "update compa_ase.batch_run set actif = false where ds2 = 'ASE_INCONNU'"
+COMPA_FAKE_FAIL=ASE2 bcmd >"$LOG" 2>&1; rc=$?
+check "connexion ASE en echec sur tout le batch -> 14" "$rc" "14"
+check "les 2 couples actifs passent a false" "$(P -c "select count(*) from compa_ase.batch_run where actif and status_run is false")" "2"
+bcmd >"$LOG" 2>&1; rc=$?
+check "batch complet reussi -> 0" "$rc" "0"
+check "les 2 couples actifs repassent a true" "$(P -c "select count(*) from compa_ase.batch_run where actif and status_run is true")" "2"
+
+P -q -c "drop table compa_ase.batch_run"
+bcmd >"$LOG" 2>&1; rc=$?
+check "table batch_run absente -> 11" "$rc" "11"
+grep -q "create_schema.sql" "$LOG" && ok "message : rejouer create_schema.sql" || ko "message : rejouer create_schema.sql"
+psql -X -q -d "$COMPA_TEST_DB" -v ON_ERROR_STOP=1 -f "$HERE/../../sql/postgres/create_schema.sql" >/dev/null 2>&1 \
+    && ok "schema rejoue : batch_run recree" || ko "schema rejoue : batch_run recree"
+
 echo "== Nettoyage =="
 P -q -c "delete from compa_ase.config_compa_ase where instance in ('ASE1','ASE2')"
 

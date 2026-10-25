@@ -74,6 +74,23 @@ CREATE TABLE IF NOT EXISTS compa_ase.config_compa_ase (
 COMMENT ON TABLE compa_ase.config_compa_ase IS
     'Credentials ASE par instance. Ne jamais versionner de contenu de cette table dans git.';
 
+-- Couples a comparer par le mode batch (compare_ase.sh -B) : une ligne par couple instance/base.
+-- ds1/db1/ds2/db2 : noms de la comparaison unitaire (-S -D -s -d). Les trois dernieres colonnes sont
+-- remplies par le script apres chaque comparaison du batch.
+CREATE TABLE IF NOT EXISTS compa_ase.batch_run (
+    ds1         text        NOT NULL,                  -- instance (serveur) 1
+    db1         text        NOT NULL,                  -- base 1
+    ds2         text        NOT NULL,                  -- instance (serveur) 2
+    db2         text        NOT NULL,                  -- base 2
+    status_run  boolean,                               -- dernier run : true = ok, false = probleme, NULL = jamais execute
+    last_run    timestamptz,                           -- date et heure de debut du dernier run
+    elapse      interval,                              -- duree du dernier run
+    actif       boolean     NOT NULL DEFAULT true,     -- false = couple ignore par le batch
+    PRIMARY KEY (ds1, db1, ds2, db2)
+);
+COMMENT ON TABLE compa_ase.batch_run IS
+    'Couples compares par le mode batch (compare_ase.sh -B) et resultat de la derniere execution de chacun.';
+
 -- Regles d'exclusion du bruit de comparaison.
 --   cle_pattern : motif SQL LIKE applique a la cle de la ligne ('%' = toutes)
 --   colonne     : colonne de valeur concernee, '*' = toute la ligne

@@ -2,6 +2,11 @@
 
 ## 0.2 - en cours (2026-10-18)
 
+### Mode batch
+- Option `-B` de `compare_ase.sh` : compare tous les couples actifs de la nouvelle table `compa_ase.batch_run` (`ds1`, `db1`, `ds2`, `db2`, `status_run`, `last_run`, `elapse`, `actif`) et y inscrit le resultat de chacun. Un couple en echec n'arrete pas les suivants ; code retour 14 si au moins un echec.
+- Le traitement unitaire est une fonction (`run_unit`) : il ne quitte plus le script, le mode batch enchaine les couples.
+- Schema : la table est creee par `create_schema.sql` (rejouable) ; l'archive `depot` attend 13 tables.
+
 ### Compatibilite
 - `compare.py` fonctionne sous Python 3.6 (RHEL 8) : plus de `from __future__ import annotations` ni de `dataclasses`, `subprocess.run` sans `capture_output`. Teste sous 3.8 et 3.13 ; 3.6 verifie par analyse de syntaxe (pas d interpreteur 3.6 disponible pour l execution).
 

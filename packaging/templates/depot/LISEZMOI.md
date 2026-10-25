@@ -1,6 +1,6 @@
 # compA_ase : archive « depot » ({{VERSION}})
 
-Installe la **base de résultats** : PostgreSQL, la base `compa` et le schéma `compa_ase` (références, runs, configuration des instances ASE, règles d'exclusion, 7 tables `diff_<module>`, vues Grafana). C'est là que le comparateur écrit et que Grafana lit.
+Installe la **base de résultats** : PostgreSQL, la base `compa` et le schéma `compa_ase` (références, runs, configuration des instances ASE, règles d'exclusion, couples du mode batch, 7 tables `diff_<module>`, vues Grafana). C'est là que le comparateur écrit et que Grafana lit.
 
 À installer **en premier**. Machine du POC : `pg01` (192.168.50.11).
 
@@ -81,6 +81,12 @@ sudo ./scripts/declarer-instance.sh ASE1 ase01 5000 sa "instance ASE de test 1"
 sudo ./scripts/declarer-instance.sh ASE2 ase02 5000 sa "instance ASE de test 2"
 ```
 
+Les couples comparés par le mode batch (`compa_ase -B`, archive comparateur) se déclarent dans `compa_ase.batch_run` :
+
+```bash
+sudo -u postgres psql -d compa -c "INSERT INTO compa_ase.batch_run (ds1, db1, ds2, db2) VALUES ('ASE1', 'poc_db', 'ASE2', 'poc_db')"
+```
+
 `config_compa_ase` contient des mots de passe en clair : jamais lisible par `grafana_ro`, jamais versionné.
 
 ## 5. Planification
@@ -98,4 +104,4 @@ Rien à planifier ici : ce sont des tables PostgreSQL. Les comparaisons se plani
 |---|---|
 | « Aucun cluster PostgreSQL n'écoute sur le port » | `pg_lsclusters` ; adapter `PG_PORT` |
 | Le comparateur ne se connecte pas | `ALLOW_SUBNET`, pare-feu, `sudo -u postgres psql -c "SHOW listen_addresses"` doit donner `*` |
-| `verify.sh` : « 12 tables » en échec | relancer `install.sh` et lire les erreurs SQL |
+| `verify.sh` : « 13 tables » en échec | relancer `install.sh` et lire les erreurs SQL |
